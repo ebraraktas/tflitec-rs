@@ -2,6 +2,25 @@ extern crate bindgen;
 
 use std::env;
 use std::path::PathBuf;
+use std::time::Instant;
+
+use fs_extra;
+
+fn copy_tensorflow() -> PathBuf {
+    let src = "third_party/tensorflow";
+    let tgt_result = out_dir().join("tensorflow");
+    if !tgt_result.exists() {
+        let mut opts = fs_extra::dir::CopyOptions::new();
+        opts.overwrite = true;
+        opts.buffer_size = 65536;
+        println!("Copy started {} -> {}", &src, &tgt_result.display());
+        let start = Instant::now();
+        fs_extra::dir::copy(src, &tgt_result.parent().unwrap(), &opts).unwrap();
+        println!("Copy took {:?}", Instant::now() - start);
+    }
+    tgt_result
+}
+
 fn check_and_set_envs() {
     // TODO: this won't work on Windows
     let python_bin_path = PathBuf::from(
@@ -123,6 +142,11 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
     }
     output_path_buf
 }
+
+fn out_dir() -> PathBuf {
+    PathBuf::from(env::var("OUT_DIR").unwrap())
+}
+
 fn main() {
     let out_path = out_dir();
     let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
@@ -151,9 +175,9 @@ fn main() {
     } else {
         os
     };
-    let tf_src_path = "third_party/tensorflow";
+    let tf_src_path = copy_tensorflow();
     check_and_set_envs();
-    build_tensorflow_with_bazel(tf_src_path, config.as_str());
+    build_tensorflow_with_bazel(tf_src_path.to_str().unwrap(), config.as_str());
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -175,8 +199,4 @@ fn main() {
     bindings
         .write_to_file(out_path.join("bindings.rs"))
         .expect("Couldn't write bindings!");
-}
-
-fn out_dir() -> PathBuf {
-    PathBuf::from(env::var("OUT_DIR").unwrap())
 }
