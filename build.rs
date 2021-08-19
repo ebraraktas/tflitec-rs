@@ -154,8 +154,6 @@ fn main() {
     let tf_src_path = "third_party/tensorflow";
     check_and_set_envs();
     build_tensorflow_with_bazel(tf_src_path, config.as_str());
-    // Tell cargo to invalidate the built crate whenever the wrapper changes
-    println!("cargo:rerun-if-changed=third_party/tensorflow/tensorflow/lite/c/c_api.h");
 
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
@@ -163,7 +161,8 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("header/c_api.h")
+        .header("third_party/tensorflow/tensorflow/lite/c/c_api.h")
+        .clang_arg("-Ithird_party/tensorflow")
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
