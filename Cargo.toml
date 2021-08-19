@@ -12,3 +12,4 @@ name = "tflitec"
 
 [build-dependencies]
 bindgen = "0.53.1"
+fs_extra = "1.2.0"
