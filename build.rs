@@ -114,6 +114,14 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
             .arg(format!("--config={}", config))
             .arg(bazel_target)
             .current_dir(tf_src_path);
+
+        if let Some(copts) = env::var("BAZEL_COPTS").ok() {
+            let copts = copts.split_ascii_whitespace();
+            for opt in copts {
+                bazel.arg(format!("--copt={}", opt))
+            }
+        }
+
         if os == "ios" {
             bazel.args(&["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
         }
