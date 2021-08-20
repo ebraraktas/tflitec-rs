@@ -118,7 +118,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         if let Some(copts) = env::var("BAZEL_COPTS").ok() {
             let copts = copts.split_ascii_whitespace();
             for opt in copts {
-                bazel.arg(format!("--copt={}", opt))
+                bazel.arg(format!("--copt={}", opt));
             }
         }
 
