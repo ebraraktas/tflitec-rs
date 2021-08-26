@@ -32,6 +32,8 @@ pub struct Interpreter {
     interpreter_ptr: *mut TfLiteInterpreter,
 }
 
+unsafe impl Send for Interpreter{}
+
 impl Interpreter {
     pub fn new(model: &Model, options: Option<Options>) -> Interpreter {
         unsafe {
