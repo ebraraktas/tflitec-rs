@@ -210,8 +210,8 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("third_party/tensorflow/tensorflow/lite/c/c_api.h")
-        .clang_arg("-Ithird_party/tensorflow")
+        .header(tf_src_path.join("tensorflow/lite/c/c_api.h").to_str().unwrap())
+        .clang_arg(format!("-I{}", tf_src_path.to_str().unwrap()))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
