@@ -6,17 +6,27 @@ use std::time::Instant;
 
 use fs_extra;
 
-fn copy_tensorflow() -> PathBuf {
-    let src = "third_party/tensorflow";
+const TF_BRANCH: &'static str = "r2.6";
+const TF_GIT_URL: &'static str = "https://github.com/tensorflow/tensorflow.git";
+
+fn prepare_tensorflow_repo() -> PathBuf {
     let tgt_result = out_dir().join("tensorflow");
     if !tgt_result.exists() {
-        let mut opts = fs_extra::dir::CopyOptions::new();
-        opts.overwrite = true;
-        opts.buffer_size = 65536;
-        println!("Copy started {} -> {}", &src, &tgt_result.display());
+        let mut git = std::process::Command::new("git");
+        git
+            .arg("clone")
+            .args(&["--depth", "1"])
+            .arg("--shallow-submodules")
+            .args(&["--branch", TF_BRANCH])
+            .arg("--single-branch")
+            .arg(TF_GIT_URL)
+            .arg(tgt_result.to_str().unwrap());
+        println!("Git clone started");
         let start = Instant::now();
-        fs_extra::dir::copy(src, &tgt_result.parent().unwrap(), &opts).unwrap();
-        println!("Copy took {:?}", Instant::now() - start);
+        if !git.status().expect("Cannot execute `git clone`").success() {
+            panic!("git clone failed");
+        }
+        println!("Clone took {:?}", Instant::now() - start);
     }
     tgt_result
 }
@@ -95,7 +105,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         output_path_buf = out_dir().join("TensorFlowLiteC.framework");
     };
 
-    if !output_path_buf.exists() {
+
         let python_bin_path = env::var("PYTHON_BIN_PATH").expect("Cannot read PYTHON_BIN_PATH");
         if !std::process::Command::new(&python_bin_path)
             .arg("configure.py")
@@ -135,9 +145,15 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
             )
         }
         if os != "ios" {
+            if output_path_buf.exists() {
+                std::fs::remove_file(&output_path_buf);
+            }
             std::fs::copy(bazel_output_path_buf, &output_path_buf)
                 .expect("Cannot copy bazel output");
         } else {
+            if output_path_buf.exists() {
+                std::fs::remove_dir_all(&output_path_buf);
+            }
             let mut unzip = std::process::Command::new("unzip");
             unzip.args(&[
                 "-q",
@@ -147,7 +163,6 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
             ]);
             unzip.status().expect("Cannot execute unzip");
         }
-    }
     output_path_buf
 }
 
@@ -156,6 +171,8 @@ fn out_dir() -> PathBuf {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=BAZEL_COPTS");
+
     let out_path = out_dir();
     let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
     let arch = env::var("CARGO_CFG_TARGET_ARCH").expect("Unable to get TARGET_ARCH");
@@ -183,7 +200,7 @@ fn main() {
     } else {
         os
     };
-    let tf_src_path = copy_tensorflow();
+    let tf_src_path = prepare_tensorflow_repo();
     check_and_set_envs();
     build_tensorflow_with_bazel(tf_src_path.to_str().unwrap(), config.as_str());
 
