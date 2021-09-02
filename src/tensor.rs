@@ -1,8 +1,7 @@
-use crate::interpreter::{ErrorKind, Error};
-use std::ffi::CStr;
-use crate::bindings::*;
 use crate::bindings;
-
+use crate::bindings::*;
+use crate::interpreter::{Error, ErrorKind};
+use std::ffi::CStr;
 
 /// Parameters that determine the mapping of quantized values to real values. Quantized values can
 /// be mapped to float values using the following conversion:
