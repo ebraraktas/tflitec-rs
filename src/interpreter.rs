@@ -7,16 +7,51 @@ use crate::model::Model;
 use crate::tensor;
 use crate::tensor::Tensor;
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum InterpreterError {
-    InvalidTensorIndex(usize, usize),     // index, max_index
-    InvalidTensorDataCount(usize, usize), // provided, required
-    FailedToResizeInputTensor(usize),
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub enum ErrorKind {
+    InvalidTensorIndex(/* index: */ usize, /* max_index: */ usize ),
+    InvalidTensorDataCount(/* provided: */ usize, /* required: */ usize),
+    FailedToResizeInputTensor(/* index: */ usize),
     AllocateTensorsRequired,
     InvalidTensorDataType,
     FailedToAllocateTensors,
     FailedToCopyDataToInputTensor,
 }
+
+impl ErrorKind {
+    pub(crate) fn as_string(&self) -> String {
+        match *self {
+            ErrorKind::InvalidTensorIndex(index, max_index) => format!("invalid tensor index {}, max index is {}", index, max_index),
+            ErrorKind::InvalidTensorDataCount(provided, required) => format!("provided data count {} must match the required count {}", provided, required),
+            ErrorKind::InvalidTensorDataType => "tensor data type is unsupported or could not be determined due to a model error".to_string(),
+            ErrorKind::FailedToResizeInputTensor(index) => format!("failed to resize input tensor at index {}", index),
+            ErrorKind::AllocateTensorsRequired => "must call allocate_tensors()".to_string(),
+            ErrorKind::FailedToAllocateTensors => "failed to allocate memory for input tensors".to_string(),
+            ErrorKind::FailedToCopyDataToInputTensor => "failed to copy data to input tensor".to_string(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct Error {
+    kind: ErrorKind
+}
+
+impl Display for Error {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.kind.as_string())
+    }
+}
+
+impl std::error::Error for Error {}
+impl Error {
+    pub(crate) fn new(kind: ErrorKind) -> Error {
+        Error {
+            kind
+        }
+    }
+}
+
 pub struct Options {
     pub thread_count: i32,
 }
@@ -65,18 +100,18 @@ impl Interpreter {
     }
 
     /// Invokes the interpreter to perform inference from the loaded graph.
-    pub fn invoke(&self) -> Result<(), InterpreterError> {
+    pub fn invoke(&self) -> Result<(), Error> {
         if TfLiteStatus_kTfLiteOk == unsafe { TfLiteInterpreterInvoke(self.interpreter_ptr) } {
             Ok(())
         } else {
-            Err(InterpreterError::AllocateTensorsRequired)
+            Err(Error::new(ErrorKind::AllocateTensorsRequired))
         }
     }
 
-    pub fn get_input_tensor(&self, index: usize) -> Result<Tensor, InterpreterError> {
+    pub fn get_input_tensor(&self, index: usize) -> Result<Tensor, Error> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
@@ -84,10 +119,10 @@ impl Interpreter {
         }
     }
 
-    pub fn get_output_tensor(&self, index: usize) -> Result<Tensor, InterpreterError> {
+    pub fn get_output_tensor(&self, index: usize) -> Result<Tensor, Error> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetOutputTensor(self.interpreter_ptr, index as i32);
@@ -95,10 +130,10 @@ impl Interpreter {
         }
     }
 
-    pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<(), InterpreterError> {
+    pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<(), Error> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         let dims = shape
             .get_dimensions()
@@ -117,18 +152,18 @@ impl Interpreter {
             {
                 Ok(())
             } else {
-                Err(InterpreterError::FailedToResizeInputTensor(index))
+                Err(Error::new(ErrorKind::FailedToResizeInputTensor(index)))
             }
         }
     }
 
-    pub fn allocate_tensors(&self) -> Result<(), InterpreterError> {
+    pub fn allocate_tensors(&self) -> Result<(), Error> {
         if TfLiteStatus_kTfLiteOk
             == unsafe { TfLiteInterpreterAllocateTensors(self.interpreter_ptr) }
         {
             Ok(())
         } else {
-            Err(InterpreterError::FailedToAllocateTensors)
+            Err(Error::new(ErrorKind::FailedToAllocateTensors))
         }
     }
 
@@ -140,19 +175,19 @@ impl Interpreter {
     /// * `index`: The index for the input `Tensor`
     ///
     /// returns: Result<(), InterpreterError>
-    pub fn copy_bytes(&self, data: &[u8], index: usize) -> Result<(), InterpreterError> {
+    fn copy_bytes(&self, data: &[u8], index: usize) -> Result<(), Error> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
             let byte_count = TfLiteTensorByteSize(tensor_ptr) as usize;
             if data.len() != byte_count {
-                return Err(InterpreterError::InvalidTensorDataCount(
+                return Err(Error::new(ErrorKind::InvalidTensorDataCount(
                     data.len(),
                     byte_count,
-                ));
+                )));
             }
             let status = TfLiteTensorCopyFromBuffer(
                 tensor_ptr,
@@ -160,19 +195,23 @@ impl Interpreter {
                 data.len() as size_t,
             );
             if status != TfLiteStatus_kTfLiteOk {
-                Err(InterpreterError::FailedToCopyDataToInputTensor)
+                Err(Error::new(ErrorKind::FailedToCopyDataToInputTensor))
             } else {
                 Ok(())
             }
         }
     }
 
-    pub fn copy<T>(&self, data: &[T], index: usize) -> Result<(), InterpreterError> {
+    pub fn copy<T>(&self, data: &[T], index: usize) -> Result<(), Error> {
         let element_size = std::mem::size_of::<T>();
         let d = unsafe {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * element_size)
         };
         self.copy_bytes(d, index)
+    }
+
+    pub fn options(&self) -> Option<&Options> {
+        self.options.as_ref()
     }
 }
 

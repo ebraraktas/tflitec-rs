@@ -1,8 +1,4 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-
-use crate::interpreter::InterpreterError;
+use crate::interpreter::{ErrorKind, Error};
 use std::ffi::CStr;
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -126,10 +122,10 @@ impl Tensor {
         }
     }
 
-    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor, InterpreterError> {
+    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor, Error> {
         unsafe {
             let data_type = DataType::new(TfLiteTensorType(tensor_ptr))
-                .ok_or(InterpreterError::InvalidTensorDataType)?;
+                .ok_or_else(|| Error::new(ErrorKind::InvalidTensorDataType))?;
 
             let name = CStr::from_ptr(TfLiteTensorName(tensor_ptr))
                 .to_str()
