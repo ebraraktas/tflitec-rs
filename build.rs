@@ -4,19 +4,26 @@ use std::env;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use fs_extra;
+const TF_BRANCH: &str = "r2.6";
+const TF_GIT_URL: &str = "https://github.com/tensorflow/tensorflow.git";
 
-fn copy_tensorflow() -> PathBuf {
-    let src = "third_party/tensorflow";
+fn prepare_tensorflow_repo() -> PathBuf {
     let tgt_result = out_dir().join("tensorflow");
     if !tgt_result.exists() {
-        let mut opts = fs_extra::dir::CopyOptions::new();
-        opts.overwrite = true;
-        opts.buffer_size = 65536;
-        println!("Copy started {} -> {}", &src, &tgt_result.display());
+        let mut git = std::process::Command::new("git");
+        git.arg("clone")
+            .args(&["--depth", "1"])
+            .arg("--shallow-submodules")
+            .args(&["--branch", TF_BRANCH])
+            .arg("--single-branch")
+            .arg(TF_GIT_URL)
+            .arg(tgt_result.to_str().unwrap());
+        println!("Git clone started");
         let start = Instant::now();
-        fs_extra::dir::copy(src, &tgt_result.parent().unwrap(), &opts).unwrap();
-        println!("Copy took {:?}", Instant::now() - start);
+        if !git.status().expect("Cannot execute `git clone`").success() {
+            panic!("git clone failed");
+        }
+        println!("Clone took {:?}", Instant::now() - start);
     }
     tgt_result
 }
@@ -70,7 +77,8 @@ fn check_and_set_envs() {
             "ANDROID_BUILD_TOOLS_VERSION",
         ];
         for name in android_env_vars {
-            env::var(name).expect(format!("{} should be set to build for Android", name).as_str());
+            env::var(name)
+                .unwrap_or_else(|_| panic!("{} should be set to build for Android", name));
         }
     }
 }
@@ -95,58 +103,61 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         output_path_buf = out_dir().join("TensorFlowLiteC.framework");
     };
 
-    if !output_path_buf.exists() {
-        let python_bin_path = env::var("PYTHON_BIN_PATH").expect("Cannot read PYTHON_BIN_PATH");
-        if !std::process::Command::new(&python_bin_path)
-            .arg("configure.py")
-            .current_dir(tf_src_path)
-            .status()
-            .expect(format!("Cannot execute python at {}", &python_bin_path).as_str())
-            .success()
-        {
-            panic!("Cannot configure tensorflow")
-        }
-        let mut bazel = std::process::Command::new("bazel");
-        bazel
-            .arg("build")
-            .arg("-c")
-            .arg("opt")
-            .arg(format!("--config={}", config))
-            .arg(bazel_target)
-            .current_dir(tf_src_path);
+    let python_bin_path = env::var("PYTHON_BIN_PATH").expect("Cannot read PYTHON_BIN_PATH");
+    if !std::process::Command::new(&python_bin_path)
+        .arg("configure.py")
+        .current_dir(tf_src_path)
+        .status()
+        .unwrap_or_else(|_| panic!("Cannot execute python at {}", &python_bin_path))
+        .success()
+    {
+        panic!("Cannot configure tensorflow")
+    }
+    let mut bazel = std::process::Command::new("bazel");
+    bazel
+        .arg("build")
+        .arg("-c")
+        .arg("opt")
+        .arg(format!("--config={}", config))
+        .arg(bazel_target)
+        .current_dir(tf_src_path);
 
-        if let Some(copts) = env::var("BAZEL_COPTS").ok() {
-            let copts = copts.split_ascii_whitespace();
-            for opt in copts {
-                bazel.arg(format!("--copt={}", opt));
-            }
+    if let Ok(copts) = env::var("BAZEL_COPTS") {
+        let copts = copts.split_ascii_whitespace();
+        for opt in copts {
+            bazel.arg(format!("--copt={}", opt));
         }
+    }
 
-        if os == "ios" {
-            bazel.args(&["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
+    if os == "ios" {
+        bazel.args(&["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
+    }
+    if !bazel.status().expect("Cannot execute bazel").success() {
+        panic!("Cannot build TensorFlowLiteC");
+    }
+    if !bazel_output_path_buf.exists() {
+        panic!(
+            "Library/Framework not found in {}",
+            bazel_output_path_buf.display()
+        )
+    }
+    if os != "ios" {
+        if output_path_buf.exists() {
+            std::fs::remove_file(&output_path_buf).unwrap();
         }
-        if !bazel.status().expect("Cannot execute bazel").success() {
-            panic!("Cannot build TensorFlowLiteC");
+        std::fs::copy(bazel_output_path_buf, &output_path_buf).expect("Cannot copy bazel output");
+    } else {
+        if output_path_buf.exists() {
+            std::fs::remove_dir_all(&output_path_buf).unwrap();
         }
-        if !bazel_output_path_buf.exists() {
-            panic!(
-                "Library/Framework not found in {}",
-                bazel_output_path_buf.display()
-            )
-        }
-        if os != "ios" {
-            std::fs::copy(bazel_output_path_buf, &output_path_buf)
-                .expect("Cannot copy bazel output");
-        } else {
-            let mut unzip = std::process::Command::new("unzip");
-            unzip.args(&[
-                "-q",
-                bazel_output_path_buf.to_str().unwrap(),
-                "-d",
-                out_dir().to_str().unwrap(),
-            ]);
-            unzip.status().expect("Cannot execute unzip");
-        }
+        let mut unzip = std::process::Command::new("unzip");
+        unzip.args(&[
+            "-q",
+            bazel_output_path_buf.to_str().unwrap(),
+            "-d",
+            out_dir().to_str().unwrap(),
+        ]);
+        unzip.status().expect("Cannot execute unzip");
     }
     output_path_buf
 }
@@ -156,6 +167,8 @@ fn out_dir() -> PathBuf {
 }
 
 fn main() {
+    println!("cargo:rerun-if-env-changed=BAZEL_COPTS");
+
     let out_path = out_dir();
     let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
     let arch = env::var("CARGO_CFG_TARGET_ARCH").expect("Unable to get TARGET_ARCH");
@@ -183,7 +196,7 @@ fn main() {
     } else {
         os
     };
-    let tf_src_path = copy_tensorflow();
+    let tf_src_path = prepare_tensorflow_repo();
     check_and_set_envs();
     build_tensorflow_with_bazel(tf_src_path.to_str().unwrap(), config.as_str());
 
@@ -193,8 +206,13 @@ fn main() {
     let bindings = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
-        .header("third_party/tensorflow/tensorflow/lite/c/c_api.h")
-        .clang_arg("-Ithird_party/tensorflow")
+        .header(
+            tf_src_path
+                .join("tensorflow/lite/c/c_api.h")
+                .to_str()
+                .unwrap(),
+        )
+        .clang_arg(format!("-I{}", tf_src_path.to_str().unwrap()))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
         .parse_callbacks(Box::new(bindgen::CargoCallbacks))
