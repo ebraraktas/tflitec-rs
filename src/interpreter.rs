@@ -1,13 +1,11 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
+use std::ffi::c_void;
+use std::fmt::{Display, Formatter};
+use std::os::raw::c_int;
 
+use crate::bindings::*;
 use crate::model::Model;
 use crate::tensor;
 use crate::tensor::Tensor;
-use std::ffi::c_void;
-use std::os::raw::c_int;
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
 #[derive(Debug, Eq, PartialEq)]
 pub enum InterpreterError {
@@ -38,7 +36,7 @@ impl Interpreter {
     pub fn new(model: &Model, options: Option<Options>) -> Interpreter {
         unsafe {
             let options_ptr = TfLiteInterpreterOptionsCreate();
-            if let Some(thread_count) = options.as_ref().and_then(|s| Some(s.thread_count)) {
+            if let Some(thread_count) = options.as_ref().map(|s| s.thread_count) {
                 TfLiteInterpreterOptionsSetNumThreads(options_ptr, thread_count);
             }
             let model_ptr = model.model_ptr as *const TfLiteModel;
@@ -82,7 +80,7 @@ impl Interpreter {
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
-            Tensor::from_raw(tensor_ptr as *mut tensor::TfLiteTensor)
+            Tensor::from_raw(tensor_ptr as *mut TfLiteTensor)
         }
     }
 
@@ -93,7 +91,7 @@ impl Interpreter {
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetOutputTensor(self.interpreter_ptr, index as i32);
-            Tensor::from_raw(tensor_ptr as *mut tensor::TfLiteTensor)
+            Tensor::from_raw(tensor_ptr as *mut TfLiteTensor)
         }
     }
 
