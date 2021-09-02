@@ -1,3 +1,4 @@
+mod error;
 pub mod interpreter;
 pub mod model;
 pub mod tensor;
@@ -11,3 +12,5 @@ pub(crate) mod bindings {
     #![allow(improper_ctypes)]
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
+
+pub use self::error::{Error, ErrorKind};

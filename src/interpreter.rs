@@ -1,68 +1,11 @@
 use std::ffi::c_void;
-use std::fmt::{Display, Formatter};
 use std::os::raw::c_int;
 
 use crate::bindings::*;
 use crate::model::Model;
 use crate::tensor;
 use crate::tensor::Tensor;
-
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub enum ErrorKind {
-    InvalidTensorIndex(/* index: */ usize, /* max_index: */ usize),
-    InvalidTensorDataCount(/* provided: */ usize, /* required: */ usize),
-    FailedToResizeInputTensor(/* index: */ usize),
-    AllocateTensorsRequired,
-    InvalidTensorDataType,
-    FailedToAllocateTensors,
-    FailedToCopyDataToInputTensor,
-}
-
-impl ErrorKind {
-    pub(crate) fn as_string(&self) -> String {
-        match *self {
-            ErrorKind::InvalidTensorIndex(index, max_index) => {
-                format!("invalid tensor index {}, max index is {}", index, max_index)
-            }
-            ErrorKind::InvalidTensorDataCount(provided, required) => format!(
-                "provided data count {} must match the required count {}",
-                provided, required
-            ),
-            ErrorKind::InvalidTensorDataType => {
-                "tensor data type is unsupported or could not be determined due to a model error"
-                    .to_string()
-            }
-            ErrorKind::FailedToResizeInputTensor(index) => {
-                format!("failed to resize input tensor at index {}", index)
-            }
-            ErrorKind::AllocateTensorsRequired => "must call allocate_tensors()".to_string(),
-            ErrorKind::FailedToAllocateTensors => {
-                "failed to allocate memory for input tensors".to_string()
-            }
-            ErrorKind::FailedToCopyDataToInputTensor => {
-                "failed to copy data to input tensor".to_string()
-            }
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct Error {
-    kind: ErrorKind,
-}
-
-impl Display for Error {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.kind.as_string())
-    }
-}
-
-impl std::error::Error for Error {}
-impl Error {
-    pub(crate) fn new(kind: ErrorKind) -> Error {
-        Error { kind }
-    }
-}
+use crate::{Error, ErrorKind};
 
 type Result<T> = std::result::Result<T, Error>;
 
@@ -88,6 +31,7 @@ impl Interpreter {
             if let Some(thread_count) = options.as_ref().map(|s| s.thread_count) {
                 TfLiteInterpreterOptionsSetNumThreads(options_ptr, thread_count);
             }
+            // TODO(ebraraktas): TfLiteInterpreterOptionsSetErrorReporter
             let model_ptr = model.model_ptr as *const TfLiteModel;
             let interpreter_ptr = TfLiteInterpreterCreate(model_ptr, options_ptr);
             TfLiteInterpreterOptionsDelete(options_ptr);
@@ -237,8 +181,9 @@ impl Drop for Interpreter {
 
 #[cfg(test)]
 mod tests {
-    use crate::interpreter::{ErrorKind, Interpreter};
+    use crate::interpreter::Interpreter;
     use crate::tensor;
+    use crate::ErrorKind;
 
     const MODEL_PATH: &'static str = "tests/add.bin";
 
@@ -260,7 +205,7 @@ mod tests {
         let invalid_tensor = interpreter.input_tensor(1);
         assert!(invalid_tensor.is_err());
         let err = invalid_tensor.err().unwrap();
-        assert_eq!(ErrorKind::InvalidTensorIndex(1, 0), err.kind);
+        assert_eq!(ErrorKind::InvalidTensorIndex(1, 0), err.kind());
         let valid_tensor = interpreter.input_tensor(0);
         assert!(valid_tensor.is_ok());
         let tensor = valid_tensor.ok().unwrap();
