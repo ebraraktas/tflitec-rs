@@ -52,6 +52,8 @@ impl Error {
     }
 }
 
+type Result<T> = std::result::Result<T, Error>;
+
 pub struct Options {
     pub thread_count: i32,
 }
@@ -100,7 +102,7 @@ impl Interpreter {
     }
 
     /// Invokes the interpreter to perform inference from the loaded graph.
-    pub fn invoke(&self) -> Result<(), Error> {
+    pub fn invoke(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk == unsafe { TfLiteInterpreterInvoke(self.interpreter_ptr) } {
             Ok(())
         } else {
@@ -108,7 +110,7 @@ impl Interpreter {
         }
     }
 
-    pub fn get_input_tensor(&self, index: usize) -> Result<Tensor, Error> {
+    pub fn get_input_tensor(&self, index: usize) -> Result<Tensor> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -119,7 +121,7 @@ impl Interpreter {
         }
     }
 
-    pub fn get_output_tensor(&self, index: usize) -> Result<Tensor, Error> {
+    pub fn get_output_tensor(&self, index: usize) -> Result<Tensor> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -130,7 +132,7 @@ impl Interpreter {
         }
     }
 
-    pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<(), Error> {
+    pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -157,7 +159,7 @@ impl Interpreter {
         }
     }
 
-    pub fn allocate_tensors(&self) -> Result<(), Error> {
+    pub fn allocate_tensors(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk
             == unsafe { TfLiteInterpreterAllocateTensors(self.interpreter_ptr) }
         {
@@ -175,7 +177,7 @@ impl Interpreter {
     /// * `index`: The index for the input `Tensor`
     ///
     /// returns: Result<(), InterpreterError>
-    fn copy_bytes(&self, data: &[u8], index: usize) -> Result<(), Error> {
+    fn copy_bytes(&self, data: &[u8], index: usize) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -202,7 +204,7 @@ impl Interpreter {
         }
     }
 
-    pub fn copy<T>(&self, data: &[T], index: usize) -> Result<(), Error> {
+    pub fn copy<T>(&self, data: &[T], index: usize) -> Result<()> {
         let element_size = std::mem::size_of::<T>();
         let d = unsafe {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * element_size)
@@ -223,7 +225,7 @@ impl Drop for Interpreter {
 
 #[cfg(test)]
 mod tests {
-    use crate::interpreter::{Interpreter, InterpreterError};
+    use crate::interpreter::{ErrorKind, Interpreter};
     use crate::tensor;
 
     const MODEL_PATH: &'static str = "tests/add.bin";
@@ -246,7 +248,7 @@ mod tests {
         let invalid_tensor = interpreter.get_input_tensor(1);
         assert!(invalid_tensor.is_err());
         let err = invalid_tensor.err().unwrap();
-        assert_eq!(InterpreterError::InvalidTensorIndex(1, 0), err);
+        assert_eq!(ErrorKind::InvalidTensorIndex(1, 0), err.kind);
         let valid_tensor = interpreter.get_input_tensor(0);
         assert!(valid_tensor.is_ok());
         let tensor = valid_tensor.ok().unwrap();
