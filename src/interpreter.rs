@@ -292,7 +292,7 @@ mod tests {
         let tensor = interpreter.input_tensor(0).unwrap();
         let data = (0..1920).map(|x| x as f32).collect::<Vec<f32>>();
         assert!(interpreter.copy(&data[..], 0).is_ok());
-        assert_eq!(data, tensor.get_data());
+        assert_eq!(data, tensor.data());
     }
 
     #[test]
@@ -311,7 +311,7 @@ mod tests {
         let expected: Vec<f32> = data.iter().map(|e| e * 3.0).collect();
         let output_tensor = interpreter.output_tensor(0).unwrap();
         assert_eq!(output_tensor.shape().dimensions(), &vec![10, 8, 8, 3]);
-        let output_vector = output_tensor.get_data::<f32>().to_vec();
+        let output_vector = output_tensor.data::<f32>().to_vec();
         assert_eq!(expected, output_vector);
     }
 }

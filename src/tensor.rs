@@ -169,9 +169,14 @@ impl Tensor {
         &self.shape
     }
 
-    pub fn get_data<T>(&self) -> &[T] {
+    pub fn data<T>(&self) -> &[T] {
         let element_size = std::mem::size_of::<T>();
-        // TODO: check => self.data.data_length % element_size == 0
+        if self.data.data_length % element_size != 0 {
+            panic!(
+                "data length {} should be divisible by size of type {}",
+                self.data.data_length, element_size
+            )
+        }
         unsafe {
             std::slice::from_raw_parts(
                 self.data.data_ptr as *const T,
