@@ -71,7 +71,7 @@ impl Interpreter {
         }
     }
 
-    pub fn input_tensor(&self, index: usize) -> Result<Tensor> {
+    pub fn input(&self, index: usize) -> Result<Tensor> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -88,7 +88,7 @@ impl Interpreter {
         }
     }
 
-    pub fn output_tensor(&self, index: usize) -> Result<Tensor> {
+    pub fn output(&self, index: usize) -> Result<Tensor> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -220,18 +220,18 @@ mod tests {
     fn test_interpreter_get_input_tensor() {
         let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
 
-        let invalid_tensor = interpreter.input_tensor(1);
+        let invalid_tensor = interpreter.input(1);
         assert!(invalid_tensor.is_err());
         let err = invalid_tensor.err().unwrap();
         assert_eq!(ErrorKind::InvalidTensorIndex(1, 0), err.kind());
 
-        let invalid_tensor = interpreter.input_tensor(0);
+        let invalid_tensor = interpreter.input(0);
         assert!(invalid_tensor.is_err());
         let err = invalid_tensor.err().unwrap();
         assert_eq!(ErrorKind::AllocateTensorsRequired, err.kind());
 
         interpreter.allocate_tensors().unwrap();
-        let valid_tensor = interpreter.input_tensor(0);
+        let valid_tensor = interpreter.input(0);
         assert!(valid_tensor.is_ok());
         let tensor = valid_tensor.ok().unwrap();
         assert_eq!(tensor.shape().dimensions(), &vec![1, 8, 8, 3])
@@ -246,7 +246,7 @@ mod tests {
         interpreter
             .allocate_tensors()
             .expect("Cannot allocate tensors");
-        let tensor = interpreter.input_tensor(0).unwrap();
+        let tensor = interpreter.input(0).unwrap();
         assert_eq!(tensor.shape().dimensions(), &vec![10, 8, 8, 3])
     }
 
@@ -259,7 +259,7 @@ mod tests {
         interpreter
             .allocate_tensors()
             .expect("Cannot allocate tensors");
-        let tensor = interpreter.input_tensor(0).unwrap();
+        let tensor = interpreter.input(0).unwrap();
         let data = (0..1920).map(|x| x as f32).collect::<Vec<f32>>();
         assert!(interpreter.copy(&data[..], 0).is_ok());
         assert_eq!(data, tensor.data());
@@ -279,7 +279,7 @@ mod tests {
         assert!(interpreter.copy(&data[..], 0).is_ok());
         assert!(interpreter.invoke().is_ok());
         let expected: Vec<f32> = data.iter().map(|e| e * 3.0).collect();
-        let output_tensor = interpreter.output_tensor(0).unwrap();
+        let output_tensor = interpreter.output(0).unwrap();
         assert_eq!(output_tensor.shape().dimensions(), &vec![10, 8, 8, 3]);
         let output_vector = output_tensor.data::<f32>().to_vec();
         assert_eq!(expected, output_vector);
