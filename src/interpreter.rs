@@ -230,7 +230,7 @@ mod tests {
         let err = invalid_tensor.err().unwrap();
         assert_eq!(ErrorKind::AllocateTensorsRequired, err.kind());
 
-        interpreter.allocate_tensors();
+        interpreter.allocate_tensors().unwrap();
         let valid_tensor = interpreter.input_tensor(0);
         assert!(valid_tensor.is_ok());
         let tensor = valid_tensor.ok().unwrap();
@@ -274,7 +274,7 @@ mod tests {
         interpreter
             .allocate_tensors()
             .expect("Cannot allocate tensors");
-        let tensor = interpreter.input_tensor(0).unwrap();
+
         let data = (0..1920).map(|x| x as f32).collect::<Vec<f32>>();
         assert!(interpreter.copy(&data[..], 0).is_ok());
         assert!(interpreter.invoke().is_ok());
