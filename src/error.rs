@@ -9,6 +9,10 @@ pub enum ErrorKind {
     InvalidTensorDataType,
     FailedToAllocateTensors,
     FailedToCopyDataToInputTensor,
+    FailedToLoadModel,
+    FailedToCreateInterpreter,
+    ReadTensorError,
+    InvokeInterpreterRequired,
 }
 
 impl ErrorKind {
@@ -35,6 +39,10 @@ impl ErrorKind {
             ErrorKind::FailedToCopyDataToInputTensor => {
                 "failed to copy data to input tensor".to_string()
             }
+            ErrorKind::FailedToLoadModel => "failed to load the given model".to_string(),
+            ErrorKind::FailedToCreateInterpreter => "failed to create the interpreter".to_string(),
+            ErrorKind::ReadTensorError => "failed to read tensor".to_string(),
+            ErrorKind::InvokeInterpreterRequired => "must call invoke()".to_string(),
         }
     }
 }
@@ -45,7 +53,7 @@ impl Display for ErrorKind {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Error {
     kind: ErrorKind,
 }
@@ -66,3 +74,5 @@ impl Error {
         self.kind
     }
 }
+
+pub type Result<T> = std::result::Result<T, Error>;

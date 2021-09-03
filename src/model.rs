@@ -1,4 +1,5 @@
 use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};
+use crate::{Error, ErrorKind, Result};
 use std::ffi::CString;
 
 pub struct Model {
@@ -17,12 +18,16 @@ impl Model {
     /// * `filepath`: The local file path to a TensorFlow Lite model.
     ///
     /// returns: Model
-    pub fn new(filepath: &str) -> Model {
+    pub fn new(filepath: &str) -> Result<Model> {
         let model_ptr = unsafe {
             let path = CString::new(filepath).unwrap();
             TfLiteModelCreateFromFile(path.as_ptr())
         };
-        Model { model_ptr }
+        if model_ptr.is_null() {
+            Err(Error::new(ErrorKind::FailedToLoadModel))
+        } else {
+            Ok(Model { model_ptr })
+        }
     }
 }
 

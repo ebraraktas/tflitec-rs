@@ -13,4 +13,4 @@ pub(crate) mod bindings {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
 
-pub use self::error::{Error, ErrorKind};
+pub use self::error::{Error, ErrorKind, Result};

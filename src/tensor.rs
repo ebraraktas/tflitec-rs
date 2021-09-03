@@ -2,7 +2,7 @@ use std::ffi::CStr;
 
 use crate::bindings;
 use crate::bindings::*;
-use crate::{Error, ErrorKind};
+use crate::{Error, ErrorKind, Result};
 
 /// Parameters that determine the mapping of quantized values to real values. Quantized values can
 /// be mapped to float values using the following conversion:
@@ -131,22 +131,31 @@ impl Tensor {
         }
     }
 
-    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor, Error> {
+    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor> {
         unsafe {
+            if tensor_ptr.is_null() {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
+
+            let name_ptr = TfLiteTensorName(tensor_ptr);
+            if name_ptr.is_null() {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
+            let data_ptr = TfLiteTensorData(tensor_ptr) as *mut u8;
+            if data_ptr.is_null() {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
+            let name = CStr::from_ptr(name_ptr).to_str().unwrap().to_owned();
+
+            let data_length = TfLiteTensorByteSize(tensor_ptr) as usize;
             let data_type = DataType::new(TfLiteTensorType(tensor_ptr))
                 .ok_or_else(|| Error::new(ErrorKind::InvalidTensorDataType))?;
 
-            let name = CStr::from_ptr(TfLiteTensorName(tensor_ptr))
-                .to_str()
-                .unwrap()
-                .to_owned();
             let rank = TfLiteTensorNumDims(tensor_ptr);
             let dimensions = (0..rank)
                 .map(|i| TfLiteTensorDim(tensor_ptr, i) as usize)
                 .collect();
             let shape = Shape::new(dimensions);
-            let data_ptr = TfLiteTensorData(tensor_ptr) as *mut u8;
-            let data_length = TfLiteTensorByteSize(tensor_ptr) as usize;
             let data = TensorData {
                 data_ptr,
                 data_length,
