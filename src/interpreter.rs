@@ -1,24 +1,12 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
+use std::ffi::c_void;
+use std::os::raw::c_int;
 
+use crate::bindings::*;
 use crate::model::Model;
 use crate::tensor;
 use crate::tensor::Tensor;
-use std::ffi::c_void;
-use std::os::raw::c_int;
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+use crate::{Error, ErrorKind, Result};
 
-#[derive(Debug, Eq, PartialEq)]
-pub enum InterpreterError {
-    InvalidTensorIndex(usize, usize),     // index, max_index
-    InvalidTensorDataCount(usize, usize), // provided, required
-    FailedToResizeInputTensor(usize),
-    AllocateTensorsRequired,
-    InvalidTensorDataType,
-    FailedToAllocateTensors,
-    FailedToCopyDataToInputTensor,
-}
 pub struct Options {
     pub thread_count: i32,
 }
@@ -32,27 +20,35 @@ pub struct Interpreter {
     interpreter_ptr: *mut TfLiteInterpreter,
 }
 
-unsafe impl Send for Interpreter{}
+unsafe impl Send for Interpreter {}
 
 impl Interpreter {
-    pub fn new(model: &Model, options: Option<Options>) -> Interpreter {
+    pub fn new(model: &Model, options: Option<Options>) -> Result<Interpreter> {
         unsafe {
             let options_ptr = TfLiteInterpreterOptionsCreate();
-            if let Some(thread_count) = options.as_ref().and_then(|s| Some(s.thread_count)) {
+            if options_ptr.is_null() {
+                return Err(Error::new(ErrorKind::FailedToCreateInterpreter));
+            }
+            if let Some(thread_count) = options.as_ref().map(|s| s.thread_count) {
                 TfLiteInterpreterOptionsSetNumThreads(options_ptr, thread_count);
             }
+            // TODO(ebraraktas): TfLiteInterpreterOptionsSetErrorReporter
             let model_ptr = model.model_ptr as *const TfLiteModel;
             let interpreter_ptr = TfLiteInterpreterCreate(model_ptr, options_ptr);
             TfLiteInterpreterOptionsDelete(options_ptr);
-            Interpreter {
-                options,
-                interpreter_ptr,
+            if interpreter_ptr.is_null() {
+                Err(Error::new(ErrorKind::FailedToCreateInterpreter))
+            } else {
+                Ok(Interpreter {
+                    options,
+                    interpreter_ptr,
+                })
             }
         }
     }
 
-    pub fn with_model_path(model_path: &str, options: Option<Options>) -> Interpreter {
-        let model = Model::new(model_path);
+    pub fn with_model_path(model_path: &str, options: Option<Options>) -> Result<Interpreter> {
+        let model = Model::new(model_path)?;
         Interpreter::new(&model, options)
     }
 
@@ -67,43 +63,55 @@ impl Interpreter {
     }
 
     /// Invokes the interpreter to perform inference from the loaded graph.
-    pub fn invoke(&self) -> Result<(), InterpreterError> {
+    pub fn invoke(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk == unsafe { TfLiteInterpreterInvoke(self.interpreter_ptr) } {
             Ok(())
         } else {
-            Err(InterpreterError::AllocateTensorsRequired)
+            Err(Error::new(ErrorKind::AllocateTensorsRequired))
         }
     }
 
-    pub fn get_input_tensor(&self, index: usize) -> Result<Tensor, InterpreterError> {
+    pub fn input(&self, index: usize) -> Result<Tensor> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
-            Tensor::from_raw(tensor_ptr as *mut tensor::TfLiteTensor)
+            Tensor::from_raw(tensor_ptr as *mut TfLiteTensor).map_err(|error| {
+                if error.kind() == ErrorKind::ReadTensorError {
+                    Error::new(ErrorKind::AllocateTensorsRequired)
+                } else {
+                    error
+                }
+            })
         }
     }
 
-    pub fn get_output_tensor(&self, index: usize) -> Result<Tensor, InterpreterError> {
+    pub fn output(&self, index: usize) -> Result<Tensor> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetOutputTensor(self.interpreter_ptr, index as i32);
-            Tensor::from_raw(tensor_ptr as *mut tensor::TfLiteTensor)
+            Tensor::from_raw(tensor_ptr as *mut TfLiteTensor).map_err(|error| {
+                if error.kind() == ErrorKind::ReadTensorError {
+                    Error::new(ErrorKind::InvokeInterpreterRequired)
+                } else {
+                    error
+                }
+            })
         }
     }
 
-    pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<(), InterpreterError> {
+    pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         let dims = shape
-            .get_dimensions()
+            .dimensions()
             .iter()
             .map(|v| *v as i32)
             .collect::<Vec<i32>>();
@@ -119,18 +127,18 @@ impl Interpreter {
             {
                 Ok(())
             } else {
-                Err(InterpreterError::FailedToResizeInputTensor(index))
+                Err(Error::new(ErrorKind::FailedToResizeInputTensor(index)))
             }
         }
     }
 
-    pub fn allocate_tensors(&self) -> Result<(), InterpreterError> {
+    pub fn allocate_tensors(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk
             == unsafe { TfLiteInterpreterAllocateTensors(self.interpreter_ptr) }
         {
             Ok(())
         } else {
-            Err(InterpreterError::FailedToAllocateTensors)
+            Err(Error::new(ErrorKind::FailedToAllocateTensors))
         }
     }
 
@@ -142,19 +150,19 @@ impl Interpreter {
     /// * `index`: The index for the input `Tensor`
     ///
     /// returns: Result<(), InterpreterError>
-    pub fn copy_bytes(&self, data: &[u8], index: usize) -> Result<(), InterpreterError> {
+    fn copy_bytes(&self, data: &[u8], index: usize) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
-            return Err(InterpreterError::InvalidTensorIndex(index, max_index));
+            return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
             let byte_count = TfLiteTensorByteSize(tensor_ptr) as usize;
             if data.len() != byte_count {
-                return Err(InterpreterError::InvalidTensorDataCount(
+                return Err(Error::new(ErrorKind::InvalidTensorDataCount(
                     data.len(),
                     byte_count,
-                ));
+                )));
             }
             let status = TfLiteTensorCopyFromBuffer(
                 tensor_ptr,
@@ -162,19 +170,23 @@ impl Interpreter {
                 data.len() as size_t,
             );
             if status != TfLiteStatus_kTfLiteOk {
-                Err(InterpreterError::FailedToCopyDataToInputTensor)
+                Err(Error::new(ErrorKind::FailedToCopyDataToInputTensor))
             } else {
                 Ok(())
             }
         }
     }
 
-    pub fn copy<T>(&self, data: &[T], index: usize) -> Result<(), InterpreterError> {
+    pub fn copy<T>(&self, data: &[T], index: usize) -> Result<()> {
         let element_size = std::mem::size_of::<T>();
         let d = unsafe {
             std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * element_size)
         };
         self.copy_bytes(d, index)
+    }
+
+    pub fn options(&self) -> Option<&Options> {
+        self.options.as_ref()
     }
 }
 
@@ -186,8 +198,9 @@ impl Drop for Interpreter {
 
 #[cfg(test)]
 mod tests {
-    use crate::interpreter::{Interpreter, InterpreterError};
+    use crate::interpreter::Interpreter;
     use crate::tensor;
+    use crate::ErrorKind;
 
     const MODEL_PATH: &'static str = "tests/add.bin";
 
@@ -198,72 +211,77 @@ mod tests {
 
     #[test]
     fn test_interpreter_input_output_count() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None);
+        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
         assert_eq!(interpreter.input_tensor_count(), 1);
         assert_eq!(interpreter.output_tensor_count(), 1);
     }
 
     #[test]
     fn test_interpreter_get_input_tensor() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None);
-        let invalid_tensor = interpreter.get_input_tensor(1);
+        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
+
+        let invalid_tensor = interpreter.input(1);
         assert!(invalid_tensor.is_err());
         let err = invalid_tensor.err().unwrap();
-        assert_eq!(InterpreterError::InvalidTensorIndex(1, 0), err);
-        let valid_tensor = interpreter.get_input_tensor(0);
+        assert_eq!(ErrorKind::InvalidTensorIndex(1, 0), err.kind());
+
+        let invalid_tensor = interpreter.input(0);
+        assert!(invalid_tensor.is_err());
+        let err = invalid_tensor.err().unwrap();
+        assert_eq!(ErrorKind::AllocateTensorsRequired, err.kind());
+
+        interpreter.allocate_tensors().unwrap();
+        let valid_tensor = interpreter.input(0);
         assert!(valid_tensor.is_ok());
         let tensor = valid_tensor.ok().unwrap();
-        assert_eq!(tensor.get_shape().get_dimensions(), &vec![1, 8, 8, 3])
+        assert_eq!(tensor.shape().dimensions(), &vec![1, 8, 8, 3])
     }
 
     #[test]
     fn test_interpreter_allocate_tensors() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None);
+        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
         interpreter
             .allocate_tensors()
             .expect("Cannot allocate tensors");
-        let tensor = interpreter.get_input_tensor(0).unwrap();
-        assert_eq!(tensor.get_shape().get_dimensions(), &vec![10, 8, 8, 3])
+        let tensor = interpreter.input(0).unwrap();
+        assert_eq!(tensor.shape().dimensions(), &vec![10, 8, 8, 3])
     }
 
     #[test]
     fn test_interpreter_copy_input() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None);
+        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
         interpreter
             .allocate_tensors()
             .expect("Cannot allocate tensors");
-        let tensor = interpreter.get_input_tensor(0).unwrap();
+        let tensor = interpreter.input(0).unwrap();
         let data = (0..1920).map(|x| x as f32).collect::<Vec<f32>>();
         assert!(interpreter.copy(&data[..], 0).is_ok());
-        assert_eq!(data, tensor.get_data());
+        assert_eq!(data, tensor.data());
     }
 
     #[test]
     fn test_interpreter_invoke() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None);
+        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
         interpreter
             .allocate_tensors()
             .expect("Cannot allocate tensors");
-        let tensor = interpreter.get_input_tensor(0).unwrap();
+
         let data = (0..1920).map(|x| x as f32).collect::<Vec<f32>>();
         assert!(interpreter.copy(&data[..], 0).is_ok());
         assert!(interpreter.invoke().is_ok());
         let expected: Vec<f32> = data.iter().map(|e| e * 3.0).collect();
-        let output_tensor = interpreter.get_output_tensor(0).unwrap();
-        assert_eq!(
-            output_tensor.get_shape().get_dimensions(),
-            &vec![10, 8, 8, 3]
-        );
-        let output_vector = output_tensor.get_data::<f32>().to_vec();
+        let output_tensor = interpreter.output(0).unwrap();
+        assert_eq!(output_tensor.shape().dimensions(), &vec![10, 8, 8, 3]);
+        let output_vector = output_tensor.data::<f32>().to_vec();
         assert_eq!(expected, output_vector);
     }
 }

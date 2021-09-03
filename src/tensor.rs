@@ -1,15 +1,14 @@
-#![allow(non_upper_case_globals)]
-#![allow(non_camel_case_types)]
-#![allow(non_snake_case)]
-
-use crate::interpreter::InterpreterError;
 use std::ffi::CStr;
-include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
+
+use crate::bindings;
+use crate::bindings::*;
+use crate::{Error, ErrorKind, Result};
 
 /// Parameters that determine the mapping of quantized values to real values. Quantized values can
 /// be mapped to float values using the following conversion:
 /// `realValue = scale * (quantizedValue - zeroPoint)`.
-pub(crate) struct QuantizationParameters {
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub struct QuantizationParameters {
     /// The difference between real values corresponding to consecutive quantized values differing by
     /// 1. For example, the range of quantized values for `UInt8` data type is [0, 255].
     scale: f32,
@@ -32,36 +31,37 @@ impl QuantizationParameters {
     }
 }
 
-pub(crate) enum DataType {
+#[derive(Copy, Clone, Eq, PartialEq)]
+pub enum DataType {
     /// A boolean.
-    bool,
+    Bool,
     /// An 8-bit unsigned integer.
-    uInt8,
+    Uint8,
     /// A 16-bit signed integer.
-    int16,
+    Int16,
     /// A 32-bit signed integer.
-    int32,
+    Int32,
     /// A 64-bit signed integer.
-    int64,
+    Int64,
     /// A 16-bit half precision floating point.
-    float16,
+    Float16,
     /// A 32-bit single precision floating point.
-    float32,
+    Float32,
     /// A 64-bit double precision floating point.
-    float64,
+    Float64,
 }
 
 impl DataType {
     pub(crate) fn new(tflite_type: TfLiteType) -> Option<DataType> {
         match tflite_type {
-            TfLiteType_kTfLiteBool => Some(DataType::bool),
-            TfLiteType_kTfLiteUInt8 => Some(DataType::uInt8),
-            TfLiteType_kTfLiteInt16 => Some(DataType::int16),
-            TfLiteType_kTfLiteInt32 => Some(DataType::int32),
-            TfLiteType_kTfLiteInt64 => Some(DataType::int64),
-            TfLiteType_kTfLiteFloat16 => Some(DataType::float16),
-            TfLiteType_kTfLiteFloat32 => Some(DataType::float32),
-            TfLiteType_kTfLiteFloat64 => Some(DataType::float64),
+            bindings::TfLiteType_kTfLiteBool => Some(DataType::Bool),
+            bindings::TfLiteType_kTfLiteUInt8 => Some(DataType::Uint8),
+            bindings::TfLiteType_kTfLiteInt16 => Some(DataType::Int16),
+            bindings::TfLiteType_kTfLiteInt32 => Some(DataType::Int32),
+            bindings::TfLiteType_kTfLiteInt64 => Some(DataType::Int64),
+            bindings::TfLiteType_kTfLiteFloat16 => Some(DataType::Float16),
+            bindings::TfLiteType_kTfLiteFloat32 => Some(DataType::Float32),
+            bindings::TfLiteType_kTfLiteFloat64 => Some(DataType::Float64),
             _ => None,
         }
     }
@@ -83,10 +83,15 @@ impl Shape {
         }
     }
 
-    pub fn get_dimensions(&self) -> &Vec<usize> {
+    pub fn dimensions(&self) -> &Vec<usize> {
         &self.dimensions
     }
+
+    pub fn rank(&self) -> usize {
+        self.rank
+    }
 }
+
 pub(crate) struct TensorData {
     data_ptr: *mut u8,
     data_length: usize,
@@ -126,29 +131,38 @@ impl Tensor {
         }
     }
 
-    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor, InterpreterError> {
+    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor> {
         unsafe {
-            let data_type = DataType::new(TfLiteTensorType(tensor_ptr))
-                .ok_or(InterpreterError::InvalidTensorDataType)?;
+            if tensor_ptr.is_null() {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
 
-            let name = CStr::from_ptr(TfLiteTensorName(tensor_ptr))
-                .to_str()
-                .unwrap()
-                .to_owned();
+            let name_ptr = TfLiteTensorName(tensor_ptr);
+            if name_ptr.is_null() {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
+            let data_ptr = TfLiteTensorData(tensor_ptr) as *mut u8;
+            if data_ptr.is_null() {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
+            let name = CStr::from_ptr(name_ptr).to_str().unwrap().to_owned();
+
+            let data_length = TfLiteTensorByteSize(tensor_ptr) as usize;
+            let data_type = DataType::new(TfLiteTensorType(tensor_ptr))
+                .ok_or_else(|| Error::new(ErrorKind::InvalidTensorDataType))?;
+
             let rank = TfLiteTensorNumDims(tensor_ptr);
             let dimensions = (0..rank)
                 .map(|i| TfLiteTensorDim(tensor_ptr, i) as usize)
                 .collect();
             let shape = Shape::new(dimensions);
-            let data_ptr = TfLiteTensorData(tensor_ptr) as *mut u8;
-            let data_length = TfLiteTensorByteSize(tensor_ptr) as usize;
             let data = TensorData {
                 data_ptr,
                 data_length,
             };
             let quantization_parameters_ptr = TfLiteTensorQuantizationParams(tensor_ptr);
             let scale = quantization_parameters_ptr.scale;
-            let quantization_parameters = if scale == 0.0 {
+            let quantization_parameters = if scale == 0.0 || data_type != DataType::Uint8 {
                 None
             } else {
                 Some(QuantizationParameters::new(
@@ -161,17 +175,35 @@ impl Tensor {
         }
     }
 
-    pub fn get_shape(&self) -> &Shape {
+    pub fn shape(&self) -> &Shape {
         &self.shape
     }
 
-    pub fn get_data<T>(&self) -> &[T] {
+    pub fn data<T>(&self) -> &[T] {
         let element_size = std::mem::size_of::<T>();
+        if self.data.data_length % element_size != 0 {
+            panic!(
+                "data length {} should be divisible by size of type {}",
+                self.data.data_length, element_size
+            )
+        }
         unsafe {
             std::slice::from_raw_parts(
                 self.data.data_ptr as *const T,
                 self.data.data_length / element_size,
             )
         }
+    }
+
+    pub fn data_type(&self) -> DataType {
+        self.data_type
+    }
+
+    pub fn quantization_parameters(&self) -> Option<QuantizationParameters> {
+        self.quantization_parameters
+    }
+
+    pub fn name(&self) -> &str {
+        self.name.as_str()
     }
 }
