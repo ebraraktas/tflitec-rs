@@ -11,10 +11,10 @@ use crate::{Error, ErrorKind, Result};
 pub struct QuantizationParameters {
     /// The difference between real values corresponding to consecutive quantized values differing by
     /// 1. For example, the range of quantized values for `UInt8` data type is [0, 255].
-    scale: f32,
+    pub scale: f32,
 
     /// The quantized value that corresponds to the real 0 value.
-    zero_point: i32,
+    pub zero_point: i32,
 }
 
 impl QuantizationParameters {
