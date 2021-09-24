@@ -444,4 +444,29 @@ mod tests {
         let output_vector = output_tensor.data::<f32>().to_vec();
         assert_eq!(expected, output_vector);
     }
+
+    #[cfg(feature = "xnnpack")]
+    #[test]
+    fn test_interpreter_invoke_xnnpack() {
+        let options = Some(Options {
+            thread_count: 2,
+            is_xnnpack_enabled: true
+        });
+        let interpreter = Interpreter::with_model_path(MODEL_PATH, options).unwrap();
+        interpreter
+            .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
+            .expect("Resize failed");
+        interpreter
+            .allocate_tensors()
+            .expect("Cannot allocate tensors");
+
+        let data = (0..1920).map(|x| x as f32).collect::<Vec<f32>>();
+        assert!(interpreter.copy(&data[..], 0).is_ok());
+        assert!(interpreter.invoke().is_ok());
+        let expected: Vec<f32> = data.iter().map(|e| e * 3.0).collect();
+        let output_tensor = interpreter.output(0).unwrap();
+        assert_eq!(output_tensor.shape().dimensions(), &vec![10, 8, 8, 3]);
+        let output_vector = output_tensor.data::<f32>().to_vec();
+        assert_eq!(expected, output_vector);
+    }
 }
