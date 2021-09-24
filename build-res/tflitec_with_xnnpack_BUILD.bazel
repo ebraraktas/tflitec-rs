@@ -1,0 +1,41 @@
+load(
+    "//tensorflow/lite:build_def.bzl",
+    "tflite_cc_shared_object",
+    "tflite_copts",
+)
+
+tflite_cc_shared_object(
+    name = "tensorflowlite_c",
+    linkopts = select({
+        "//tensorflow:ios": [
+            "-Wl,-exported_symbols_list,$(location //tensorflow/lite/c:exported_symbols.lds)",
+        ],
+        "//tensorflow:macos": [
+            "-Wl,-exported_symbols_list,$(location //tensorflow/lite/c:exported_symbols.lds)",
+        ],
+        "//tensorflow:windows": [],
+        "//conditions:default": [
+            "-z defs",
+            "-Wl,--version-script,$(location //tensorflow/lite/c:version_script.lds)",
+        ],
+    }),
+    per_os_targets = True,
+    deps = [
+        ":c_api_with_xnn_pack",
+        "//tensorflow/lite/c:c_api_experimental",
+        "//tensorflow/lite/c:exported_symbols.lds",
+        "//tensorflow/lite/c:version_script.lds",
+    ],
+)
+
+cc_library(
+    name = "c_api_with_xnn_pack",
+    hdrs = ["//tensorflow/lite/c:c_api.h",
+            "//tensorflow/lite/delegates/xnnpack:xnnpack_delegate.h"],
+    copts = tflite_copts(),
+    deps = [
+        "//tensorflow/lite/c:c_api",
+        "//tensorflow/lite/delegates/xnnpack:xnnpack_delegate"
+    ],
+    alwayslink = 1,
+)
