@@ -1,5 +1,13 @@
 //! TensorFlow Lite [`Model`] loader.
-use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};
+//!
+//! # Examples
+//!
+//! ```
+//! use tflitec::model::Model;
+//! let model = Model::new("tests/add.bin")?;
+//! # Ok::<(), tflitec::Error>(())
+//! ```
+use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete, TfLiteModelCreate};
 use crate::{Error, ErrorKind, Result};
 use std::ffi::CString;
 
@@ -18,8 +26,6 @@ impl Model {
     /// # Arguments
     ///
     /// * `filepath`: The local file path to a TensorFlow Lite model.
-    ///
-    /// returns: Model
     pub fn new(filepath: &str) -> Result<Model> {
         let model_ptr = unsafe {
             let path = CString::new(filepath).unwrap();

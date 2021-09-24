@@ -101,13 +101,14 @@
 //! ```sh
 //! # Set appropriate host tag and target name.
 //! # see https://developer.android.com/ndk/guides/other_build_systems
-//! HOST_TAG=
-//! TARGET_NAME=
+//! HOST_TAG=darwin-x86_64 # as example
+//! TARGET_TRIPLE=arm-linux-androideabi # as example
 //! BINDGEN_EXTRA_CLANG_ARGS="\
 //! -I${ANDROID_NDK_HOME}/sources/cxx-stl/llvm-libc++/include/ \
 //! -I${ANDROID_NDK_HOME}/sysroot/usr/include/ \
-//! -I${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${HOST_TAG}/sysroot/usr/include/${TARGET_NAME}/"
+//! -I${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${HOST_TAG}/sysroot/usr/include/${TARGET_TRIPLE}/"
 //! ```
+//! * [Recommended] [cargo-ndk] simplifies `cargo build` process.
 //!
 //!
 //! [TensorFlow]: https://www.tensorflow.org/
@@ -120,6 +121,7 @@
 //! [XNNPACK_quant_blog]: https://blog.tensorflow.org/2021/09/faster-quantized-inference-with-xnnpack.html
 //! [Android NDK]: https://developer.android.com/ndk/guides
 //! [cargo documentation]: https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
+//! [cargo-ndk]: https://github.com/bbqsrc/cargo-ndk
 
 mod error;
 pub mod interpreter;
