@@ -1,16 +1,19 @@
+//! TensorFlow Lite input or output [`Tensor`] associated with an interpreter.
 use std::ffi::CStr;
 
 use crate::bindings;
 use crate::bindings::*;
 use crate::{Error, ErrorKind, Result};
 
-/// Parameters that determine the mapping of quantized values to real values. Quantized values can
-/// be mapped to float values using the following conversion:
+/// Parameters that determine the mapping of quantized values to real values.
+///
+/// Quantized values can be mapped to float values using the following conversion:
 /// `realValue = scale * (quantizedValue - zeroPoint)`.
 #[derive(Copy, Clone, PartialEq, Debug)]
 pub struct QuantizationParameters {
-    /// The difference between real values corresponding to consecutive quantized values differing by
-    /// 1. For example, the range of quantized values for `UInt8` data type is [0, 255].
+    /// The difference between real values corresponding to consecutive quantized
+    /// values differing by 1. For example, the range of quantized values for `u8`
+    /// data type is [0, 255].
     pub scale: f32,
 
     /// The quantized value that corresponds to the real 0 value.
@@ -31,7 +34,8 @@ impl QuantizationParameters {
     }
 }
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+/// The supported [`Tensor`] data types.
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum DataType {
     /// A boolean.
     Bool,
@@ -52,6 +56,15 @@ pub enum DataType {
 }
 
 impl DataType {
+    /// Creates a new instance from the given [`Option<TfLiteType>`].
+    ///
+    /// # Arguments
+    ///
+    /// * `tflite_type`: A data type for a tensor.
+    ///
+    /// returns: [`None`] if the data type is unsupported or could not
+    /// be determined because there was an error, otherwise returns
+    /// [`Some`] corresponding enum variant.
     pub(crate) fn new(tflite_type: TfLiteType) -> Option<DataType> {
         match tflite_type {
             bindings::TfLiteType_kTfLiteBool => Some(DataType::Bool),
@@ -67,15 +80,32 @@ impl DataType {
     }
 }
 
+/// The shape of a [`Tensor`].
 pub struct Shape {
-    /// The number of dimensions of the `Tensor`
+    /// The number of dimensions of the [`Tensor`]
     rank: usize,
 
-    /// An array of dimensions for the `Tensor`
+    /// An array of dimensions for the [`Tensor`]
     dimensions: Vec<usize>,
 }
 
 impl Shape {
+    /// Creates a new instance with the given `dimensions`.
+    ///
+    /// # Arguments
+    ///
+    /// * `dimensions`: Dimensions for the [`Tensor`].
+    ///
+    /// returns: Shape
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tflitec::tensor;
+    /// let shape = tensor::Shape::new(vec![8, 16, 16]);
+    /// assert_eq!(shape.rank(), 3);
+    /// assert_eq!(shape.dimensions(), &vec![8, 16, 16]);
+    /// ```
     pub fn new(dimensions: Vec<usize>) -> Shape {
         Shape {
             rank: dimensions.len(),
@@ -83,10 +113,12 @@ impl Shape {
         }
     }
 
+    /// Returns dimensions of the [`Tensor`].
     pub fn dimensions(&self) -> &Vec<usize> {
         &self.dimensions
     }
 
+    /// Returns rank(number of dimensions) of the [`Tensor`].
     pub fn rank(&self) -> usize {
         self.rank
     }
@@ -97,6 +129,7 @@ pub(crate) struct TensorData {
     data_length: usize,
 }
 
+/// An input or output tensor in a TensorFlow Lite graph.
 pub struct Tensor {
     /// The name of the `Tensor`.
     name: String,
@@ -175,10 +208,17 @@ impl Tensor {
         }
     }
 
+    /// Returns [`Shape`] of the tensor
     pub fn shape(&self) -> &Shape {
         &self.shape
     }
 
+    /// Returns data of the tensor as a slice of given type `T`.
+    ///
+    /// # Panics
+    ///
+    /// * If number of bytes in buffer of the [`Tensor`] is not integer
+    /// multiple of byte count of a single `T` (see [`std::mem::size_of`])
     pub fn data<T>(&self) -> &[T] {
         let element_size = std::mem::size_of::<T>();
         if self.data.data_length % element_size != 0 {
@@ -195,14 +235,17 @@ impl Tensor {
         }
     }
 
+    /// Returns [data type][`DataType`] of the [`Tensor`].
     pub fn data_type(&self) -> DataType {
         self.data_type
     }
 
+    /// Returns optional [`QuantizationParameters`] of the [`Tensor`].
     pub fn quantization_parameters(&self) -> Option<QuantizationParameters> {
         self.quantization_parameters
     }
 
+    /// Returns name of the [`Tensor`].
     pub fn name(&self) -> &str {
         self.name.as_str()
     }

@@ -1,9 +1,11 @@
+//! TensorFlow Lite [`Model`] loader.
 use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};
 use crate::{Error, ErrorKind, Result};
 use std::ffi::CString;
 
+/// A TensorFlow Lite model used by the [`Interpreter`][crate::interpreter::Interpreter] to perform inference.
 pub struct Model {
-    /// The underlying `TfLiteModel` C pointer.
+    /// The underlying [`TfLiteModel`] C pointer.
     pub(crate) model_ptr: *mut TfLiteModel,
 }
 

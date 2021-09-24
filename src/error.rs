@@ -1,9 +1,14 @@
+//! Definitions of `Error` type and `ErrorKind`s of the crate.
 use core::fmt::{Display, Formatter};
 
+/// A list specifying general categories of TensorFlow Lite errors.
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum ErrorKind {
+    /// Indicates given tensor index (first value) is larger than maximum index (second value).
     InvalidTensorIndex(/* index: */ usize, /* max_index: */ usize),
+    /// Indicates given data length (first value) is not equal to required length (second value).
     InvalidTensorDataCount(/* provided: */ usize, /* required: */ usize),
+    /// Indicates failure to resize tensor with index (first value).
     FailedToResizeInputTensor(/* index: */ usize),
     AllocateTensorsRequired,
     InvalidTensorDataType,
@@ -53,6 +58,7 @@ impl Display for ErrorKind {
     }
 }
 
+/// The error type for TensorFlow Lite operations.
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Error {
     kind: ErrorKind,
@@ -75,4 +81,5 @@ impl Error {
     }
 }
 
+/// A specialized [`Result`] type for API operations.
 pub type Result<T> = std::result::Result<T, Error>;

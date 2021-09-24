@@ -1,3 +1,4 @@
+//! API of TensorFlow Lite [`Interpreter`] that performs inference.
 use std::ffi::c_void;
 use std::os::raw::c_int;
 
@@ -10,6 +11,14 @@ use crate::{Error, ErrorKind, Result};
 /// Options for configuring the [`Interpreter`].
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash, Ord, PartialOrd)]
 pub struct Options {
+    /// The maximum number of CPU threads that the interpreter should run on.
+    ///
+    /// The default is -1 indicating that the [`Interpreter`] will decide
+    /// the number of threads to use. `thread_count` should be >= -1.
+    /// Setting `thread_count` to 0 has the effect to disable multithreading,
+    /// which is equivalent to setting `thread_count` to 1.
+    /// If set to the value -1, the number of threads used will be
+    /// implementation-defined and platform-dependent.
     pub thread_count: i32,
 
     /// Indicates whether an optimized set of floating point CPU kernels, provided by XNNPACK, is
@@ -48,11 +57,13 @@ impl Default for Options {
 }
 
 /// A TensorFlow Lite interpreter that performs inference from a given model.
+///
+/// - Note: Interpreter instances are *not* thread-safe.
 pub struct Interpreter {
-    /// The configuration options for the `Interpreter`.
+    /// The configuration options for the [`Interpreter`].
     options: Option<Options>,
 
-    /// The underlying `TfLiteInterpreter` C pointer.
+    /// The underlying [`TfLiteInterpreter`] C pointer.
     interpreter_ptr: *mut TfLiteInterpreter,
 
     /// The underlying [`TfLiteDelegate`] C pointer for XNNPACK delegate.
@@ -63,6 +74,22 @@ pub struct Interpreter {
 unsafe impl Send for Interpreter {}
 
 impl Interpreter {
+    /// Creates new [`Interpreter`]
+    ///
+    /// # Arguments
+    ///
+    /// * `model`: TensorFlow Lite [model][`Model`]
+    /// * `options`: Interpreter [options][`Options`]
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tflitec::model::Model;
+    /// use tflitec::interpreter::Interpreter;
+    /// let model = Model::new("tests/add.bin")?;
+    /// let interpreter = Interpreter::new(&model, None)?;
+    /// # Ok::<(), tflitec::Error>(())
+    /// ```
     pub fn new(model: &Model, options: Option<Options>) -> Result<Interpreter> {
         unsafe {
             let options_ptr = TfLiteInterpreterOptionsCreate();
@@ -102,17 +129,33 @@ impl Interpreter {
         }
     }
 
+    /// Creates an [`Interpreter`] with model path.
+    ///
+    /// # Arguments
+    ///
+    /// * `model_path`: Path to TensorFlow Lite model
+    /// * `options`: Interpreter [`Options`]
+    ///
+    /// returns: Result<Interpreter, Error>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tflitec::interpreter::Interpreter;
+    /// let interpreter = Interpreter::with_model_path("tests/add.bin", None)?;
+    /// # Ok::<(), tflitec::Error>(())
+    /// ```
     pub fn with_model_path(model_path: &str, options: Option<Options>) -> Result<Interpreter> {
         let model = Model::new(model_path)?;
         Interpreter::new(&model, options)
     }
 
-    /// The total number of input `Tensor`s associated with the model.
+    /// Returns the total number of input [`Tensor`]s associated with the model.
     pub fn input_tensor_count(&self) -> usize {
         unsafe { TfLiteInterpreterGetInputTensorCount(self.interpreter_ptr) as usize }
     }
 
-    /// The total number of output `Tensor`s associated with the model.
+    /// Returns the total number of output `Tensor`s associated with the model.
     pub fn output_tensor_count(&self) -> usize {
         unsafe { TfLiteInterpreterGetOutputTensorCount(self.interpreter_ptr) as usize }
     }
@@ -126,6 +169,13 @@ impl Interpreter {
         }
     }
 
+    /// Returns the input [`Tensor`] at the given `index`.
+    ///
+    /// # Arguments
+    ///
+    /// * `index`: The index for the input [`Tensor`].
+    ///
+    /// returns: `Result<Tensor, Error>`
     pub fn input(&self, index: usize) -> Result<Tensor> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
@@ -143,6 +193,14 @@ impl Interpreter {
         }
     }
 
+
+    /// Returns the output [`Tensor`] at the given `index`.
+    ///
+    /// # Arguments
+    ///
+    /// * `index`: The index for the output [`Tensor`].
+    ///
+    /// returns: `Result<Tensor, Error>`
     pub fn output(&self, index: usize) -> Result<Tensor> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
@@ -160,6 +218,19 @@ impl Interpreter {
         }
     }
 
+    /// Resizes the input [`Tensor`] at the given index to the
+    /// specified [`Shape`][tensor::Shape].
+    ///
+    /// - Note: After resizing an input tensor, the client **must** explicitly call
+    /// [`Interpreter::allocate_tensors()`] before attempting to access the resized tensor data
+    /// or invoking the interpreter to perform inference.
+    ///
+    /// # Arguments
+    ///
+    /// * `index`: The index for the input [`Tensor`].
+    /// * `shape`: The shape to resize the input [`Tensor`] to.
+    ///
+    /// returns: `Result<(), Error>`
     pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
@@ -187,6 +258,13 @@ impl Interpreter {
         }
     }
 
+    /// Allocates memory for all input [`Tensor`]s based on their [`Shape`][tensor::Shape]s.
+    ///
+    /// - Note: This is a relatively expensive operation and should only be called
+    /// after creating the interpreter and resizing any input tensors.
+    ///
+    /// returns: An [`ErrorKind::FailedToAllocateTensors`] if memory could not be allocated
+    /// for the input tensors.
     pub fn allocate_tensors(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk
             == unsafe { TfLiteInterpreterAllocateTensors(self.interpreter_ptr) }
@@ -197,14 +275,15 @@ impl Interpreter {
         }
     }
 
-    /// Copies the given data to the input `Tensor` at the given index.
+    /// Copies the given `data` to the input [`Tensor`] at the given `index`.
     ///
     /// # Arguments
     ///
     /// * `data`: The data to be copied to the input `Tensor`'s data buffer
     /// * `index`: The index for the input `Tensor`
     ///
-    /// returns: Result<(), InterpreterError>
+    /// returns: An [Error] if the `data.len()` does not match the input tensor's
+    /// `data.len()` or if the given index is invalid.
     fn copy_bytes(&self, data: &[u8], index: usize) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
@@ -232,6 +311,15 @@ impl Interpreter {
         }
     }
 
+    /// Copies the given `data` to the input [`Tensor`] at the given `index`.
+    ///
+    /// # Arguments
+    ///
+    /// * `data`: The data to be copied to the input `Tensor`'s data buffer.
+    /// * `index`: The index for the input [`Tensor`].
+    ///
+    /// returns: An [Error] if the byte count of `data` does not match the input tensor's
+    /// buffer size or if the given `index` is invalid.
     pub fn copy<T>(&self, data: &[T], index: usize) -> Result<()> {
         let element_size = std::mem::size_of::<T>();
         let d = unsafe {
@@ -240,6 +328,7 @@ impl Interpreter {
         self.copy_bytes(d, index)
     }
 
+    /// Returns optional reference of [`Options`].
     pub fn options(&self) -> Option<&Options> {
         self.options.as_ref()
     }
