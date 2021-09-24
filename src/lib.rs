@@ -1,3 +1,7 @@
+// only enables the `doc_cfg` feature when
+// the `docsrs` configuration attribute is defined
+#![cfg_attr(docsrs, feature(doc_cfg))]
+
 //! This crate is safe Rust wrapper of [TensorFlow Lite C API].
 //! Its API is very similar to that of [TensorFlow Swift API].
 //!
@@ -108,7 +112,7 @@
 //! -I${ANDROID_NDK_HOME}/sysroot/usr/include/ \
 //! -I${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${HOST_TAG}/sysroot/usr/include/${TARGET_TRIPLE}/"
 //! ```
-//! * [Recommended] [cargo-ndk] simplifies `cargo build` process.
+//! * (Recommended) [cargo-ndk] simplifies `cargo build` process.
 //!
 //!
 //! [TensorFlow]: https://www.tensorflow.org/

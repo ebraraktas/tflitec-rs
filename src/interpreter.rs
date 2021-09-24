@@ -27,11 +27,10 @@ pub struct Options {
     /// # Details (from TensorFlowLiteSwift documentation)
     /// ## Experiment:
     /// Enabling this flag will enable use of a new, highly optimized set of CPU kernels provided
-    /// via the XNNPACK delegate. Currently, this is restricted to a subset of floating point
+    /// via the XNNPACK delegate. ~~Currently, this is restricted to a subset of floating point
     /// operations. Eventually, we plan to enable this by default, as it can provide significant
-    /// performance benefits for many classes of floating point models. See
-    /// https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/delegates/xnnpack/README.md
-    /// for more details.
+    /// performance benefits for many classes of floating point models.~~
+    /// See [official README](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/delegates/xnnpack/README.md) for more details.
     ///
     /// ## Important:
     /// Things to keep in mind when enabling this flag:
@@ -43,6 +42,7 @@ pub struct Options {
     ///
     /// **Warning:** This is an experimental interface that is subject to change.
     #[cfg(feature = "xnnpack")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "xnnpack")))]
     pub is_xnnpack_enabled: bool,
 }
 
