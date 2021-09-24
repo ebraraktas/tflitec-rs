@@ -146,13 +146,13 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
     {
         bazel
             .arg("--define")
-            .arg("xnn_enable_qs8=true")
+            .arg("xnn_enable_qs8=true");
     }
     #[cfg(feature = "xnnpack_qu8")]
     {
         bazel
             .arg("--define")
-            .arg("xnn_enable_qu8=true")
+            .arg("xnn_enable_qu8=true");
     }
 
     bazel
