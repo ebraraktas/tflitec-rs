@@ -25,6 +25,17 @@ fn prepare_tensorflow_repo() -> PathBuf {
         }
         println!("Clone took {:?}", Instant::now() - start);
     }
+
+    #[cfg(feature = "xnnpack")]
+    {
+        let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        let bazel_build_path = root.join("build-res/tflitec_with_xnnpack_BUILD.bazel");
+        let target = tgt_result.join("tensorflow/lite/c/tmp/BUILD");
+        std::fs::create_dir_all(target.parent().unwrap())
+            .expect("Cannot create tmp directory");
+        std::fs::copy(bazel_build_path, target)
+            .expect("Cannot copy temporary BUILD file");
+    }
     tgt_result
 }
 
@@ -90,16 +101,21 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
     let bazel_target;
     if os != "ios" {
         let ext = if os != "macos" { "so" } else { "dylib" };
+        let sub_directory = if cfg!(feature="xnnpack") {
+            "/tmp"
+        } else {
+            ""
+        };
         bazel_output_path_buf = PathBuf::from(tf_src_path).join(format!(
-            "bazel-bin/tensorflow/lite/c/libtensorflowlite_c.{}",
-            ext
+            "bazel-bin/tensorflow/lite/c{}/libtensorflowlite_c.{}",
+            sub_directory, ext
         ));
-        bazel_target = "//tensorflow/lite/c:tensorflowlite_c";
+        bazel_target = format!("//tensorflow/lite/c{}:tensorflowlite_c", sub_directory);
         output_path_buf = out_dir().join(format!("libtensorflowlite_c.{}", ext));
     } else {
         bazel_output_path_buf = PathBuf::from(tf_src_path)
             .join("bazel-bin/tensorflow/lite/ios/TensorFlowLiteC_framework.zip");
-        bazel_target = "//tensorflow/lite/ios:TensorFlowLiteC_framework";
+        bazel_target = String::from("//tensorflow/lite/ios:TensorFlowLiteC_framework");
         output_path_buf = out_dir().join("TensorFlowLiteC.framework");
     };
 
@@ -117,7 +133,29 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
     bazel
         .arg("build")
         .arg("-c")
-        .arg("opt")
+        .arg("opt");
+
+    #[cfg(any(feature = "xnnpack_qu8", feature = "xnnpack_qs8"))]
+    {
+        bazel
+            .arg("--define")
+            .arg("tflite_with_xnnpack=true");
+    }
+
+    #[cfg(feature = "xnnpack_qs8")]
+    {
+        bazel
+            .arg("--define")
+            .arg("xnn_enable_qs8=true")
+    }
+    #[cfg(feature = "xnnpack_qu8")]
+    {
+        bazel
+            .arg("--define")
+            .arg("xnn_enable_qu8=true")
+    }
+
+    bazel
         .arg(format!("--config={}", config))
         .arg(bazel_target)
         .current_dir(tf_src_path);
@@ -203,7 +241,7 @@ fn main() {
     // The bindgen::Builder is the main entry point
     // to bindgen, and lets you build up options for
     // the resulting bindings.
-    let bindings = bindgen::Builder::default()
+    let mut builder = bindgen::Builder::default()
         // The input header we would like to generate
         // bindings for.
         .header(
@@ -211,7 +249,17 @@ fn main() {
                 .join("tensorflow/lite/c/c_api.h")
                 .to_str()
                 .unwrap(),
-        )
+        );
+    if cfg!(feature = "xnnpack") {
+        builder = builder
+            .header(tf_src_path
+                        .join("tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h")
+                        .to_str()
+                        .unwrap(),
+            );
+    }
+
+    let bindings = builder
         .clang_arg(format!("-I{}", tf_src_path.to_str().unwrap()))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.

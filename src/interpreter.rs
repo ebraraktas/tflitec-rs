@@ -7,8 +7,44 @@ use crate::tensor;
 use crate::tensor::Tensor;
 use crate::{Error, ErrorKind, Result};
 
+/// Options for configuring the [`Interpreter`].
+#[derive(Debug, Eq, PartialEq, Copy, Clone, Hash, Ord, PartialOrd)]
 pub struct Options {
     pub thread_count: i32,
+
+    /// Indicates whether an optimized set of floating point CPU kernels, provided by XNNPACK, is
+    /// enabled.
+    ///
+    /// # Details (from TensorFlowLiteSwift documentation)
+    /// ## Experiment:
+    /// Enabling this flag will enable use of a new, highly optimized set of CPU kernels provided
+    /// via the XNNPACK delegate. Currently, this is restricted to a subset of floating point
+    /// operations. Eventually, we plan to enable this by default, as it can provide significant
+    /// performance benefits for many classes of floating point models. See
+    /// https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/delegates/xnnpack/README.md
+    /// for more details.
+    ///
+    /// ## Important:
+    /// Things to keep in mind when enabling this flag:
+    ///
+    /// * Startup time and resize time may increase.
+    /// * Baseline memory consumption may increase.
+    /// * Compatibility with other delegates (e.g., GPU) has not been fully validated.
+    /// * Quantized models will not see any benefit.
+    ///
+    /// **Warning:** This is an experimental interface that is subject to change.
+    #[cfg(feature = "xnnpack")]
+    pub is_xnnpack_enabled: bool,
+}
+
+impl Default for Options {
+    fn default() -> Self {
+        Self {
+            thread_count: -1,
+            #[cfg(feature = "xnnpack")]
+            is_xnnpack_enabled: false
+        }
+    }
 }
 
 /// A TensorFlow Lite interpreter that performs inference from a given model.
@@ -18,6 +54,10 @@ pub struct Interpreter {
 
     /// The underlying `TfLiteInterpreter` C pointer.
     interpreter_ptr: *mut TfLiteInterpreter,
+
+    /// The underlying [`TfLiteDelegate`] C pointer for XNNPACK delegate.
+    #[cfg(feature = "xnnpack")]
+    xnnpack_delegate_ptr: Option<*mut TfLiteDelegate>
 }
 
 unsafe impl Send for Interpreter {}
@@ -32,6 +72,19 @@ impl Interpreter {
             if let Some(thread_count) = options.as_ref().map(|s| s.thread_count) {
                 TfLiteInterpreterOptionsSetNumThreads(options_ptr, thread_count);
             }
+
+            #[cfg(feature = "xnnpack")]
+            let mut xnnpack_delegate_ptr: Option<*mut TfLiteDelegate> = None;
+            #[cfg(feature = "xnnpack")]
+            {
+                if let Some(options) = options.as_ref() {
+                    if options.is_xnnpack_enabled {
+                        xnnpack_delegate_ptr =
+                            Some(Interpreter::configure_xnnpack(options, options_ptr));
+                    }
+                }
+            }
+
             // TODO(ebraraktas): TfLiteInterpreterOptionsSetErrorReporter
             let model_ptr = model.model_ptr as *const TfLiteModel;
             let interpreter_ptr = TfLiteInterpreterCreate(model_ptr, options_ptr);
@@ -42,6 +95,8 @@ impl Interpreter {
                 Ok(Interpreter {
                     options,
                     interpreter_ptr,
+                    #[cfg(feature = "xnnpack")]
+                    xnnpack_delegate_ptr
                 })
             }
         }
@@ -188,11 +243,32 @@ impl Interpreter {
     pub fn options(&self) -> Option<&Options> {
         self.options.as_ref()
     }
+
+    #[cfg(feature = "xnnpack")]
+    unsafe fn configure_xnnpack(options: &Options, interpreter_options_ptr: *mut TfLiteInterpreterOptions) -> *mut TfLiteDelegate {
+        let mut xnnpack_options = TfLiteXNNPackDelegateOptionsDefault();
+        if options.thread_count > 0 {
+            xnnpack_options.num_threads = options.thread_count
+        }
+
+        let xnnpack_delegate_ptr = TfLiteXNNPackDelegateCreate(&xnnpack_options);
+        TfLiteInterpreterOptionsAddDelegate(interpreter_options_ptr, xnnpack_delegate_ptr);
+        xnnpack_delegate_ptr
+    }
 }
 
 impl Drop for Interpreter {
     fn drop(&mut self) {
-        unsafe { TfLiteInterpreterDelete(self.interpreter_ptr) }
+        unsafe {
+            TfLiteInterpreterDelete(self.interpreter_ptr);
+
+            #[cfg(feature = "xnnpack")]
+            {
+                if let Some(delegate_ptr) = self.xnnpack_delegate_ptr {
+                    TfLiteXNNPackDelegateDelete(delegate_ptr)
+                }
+            }
+        }
     }
 }
 
