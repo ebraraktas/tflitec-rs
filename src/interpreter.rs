@@ -24,12 +24,9 @@ pub struct Options {
     /// Indicates whether an optimized set of floating point CPU kernels, provided by XNNPACK, is
     /// enabled.
     ///
-    /// # Details (from TensorFlowLiteSwift documentation)
-    /// ## Experiment:
     /// Enabling this flag will enable use of a new, highly optimized set of CPU kernels provided
     /// via the XNNPACK delegate. ~~Currently, this is restricted to a subset of floating point
-    /// operations. Eventually, we plan to enable this by default, as it can provide significant
-    /// performance benefits for many classes of floating point models.~~
+    /// operations.~~
     /// See [official README](https://github.com/tensorflow/tensorflow/blob/master/tensorflow/lite/delegates/xnnpack/README.md) for more details.
     ///
     /// ## Important:
@@ -37,10 +34,8 @@ pub struct Options {
     ///
     /// * Startup time and resize time may increase.
     /// * Baseline memory consumption may increase.
-    /// * Compatibility with other delegates (e.g., GPU) has not been fully validated.
-    /// * Quantized models will not see any benefit.
-    ///
-    /// **Warning:** This is an experimental interface that is subject to change.
+    /// * Quantized models will not see any benefit unless features `xnnpack_qu8` or `xnnpack_qs8`
+    /// are enabled.
     #[cfg(feature = "xnnpack")]
     #[cfg_attr(docsrs, doc(cfg(feature = "xnnpack")))]
     pub is_xnnpack_enabled: bool,
@@ -363,7 +358,7 @@ impl Drop for Interpreter {
 
 #[cfg(test)]
 mod tests {
-    use crate::interpreter::Interpreter;
+    use crate::interpreter::{Interpreter, Options};
     use crate::tensor;
     use crate::ErrorKind;
 
