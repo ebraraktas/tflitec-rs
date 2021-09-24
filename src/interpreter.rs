@@ -46,7 +46,7 @@ impl Default for Options {
         Self {
             thread_count: -1,
             #[cfg(feature = "xnnpack")]
-            is_xnnpack_enabled: false
+            is_xnnpack_enabled: false,
         }
     }
 }
@@ -63,7 +63,7 @@ pub struct Interpreter {
 
     /// The underlying [`TfLiteDelegate`] C pointer for XNNPACK delegate.
     #[cfg(feature = "xnnpack")]
-    xnnpack_delegate_ptr: Option<*mut TfLiteDelegate>
+    xnnpack_delegate_ptr: Option<*mut TfLiteDelegate>,
 }
 
 unsafe impl Send for Interpreter {}
@@ -118,7 +118,7 @@ impl Interpreter {
                     options,
                     interpreter_ptr,
                     #[cfg(feature = "xnnpack")]
-                    xnnpack_delegate_ptr
+                    xnnpack_delegate_ptr,
                 })
             }
         }
@@ -187,7 +187,6 @@ impl Interpreter {
             })
         }
     }
-
 
     /// Returns the output [`Tensor`] at the given `index`.
     ///
@@ -329,7 +328,10 @@ impl Interpreter {
     }
 
     #[cfg(feature = "xnnpack")]
-    unsafe fn configure_xnnpack(options: &Options, interpreter_options_ptr: *mut TfLiteInterpreterOptions) -> *mut TfLiteDelegate {
+    unsafe fn configure_xnnpack(
+        options: &Options,
+        interpreter_options_ptr: *mut TfLiteInterpreterOptions,
+    ) -> *mut TfLiteDelegate {
         let mut xnnpack_options = TfLiteXNNPackDelegateOptionsDefault();
         if options.thread_count > 0 {
             xnnpack_options.num_threads = options.thread_count
@@ -450,7 +452,7 @@ mod tests {
     fn test_interpreter_invoke_xnnpack() {
         let options = Some(Options {
             thread_count: 2,
-            is_xnnpack_enabled: true
+            is_xnnpack_enabled: true,
         });
         let interpreter = Interpreter::with_model_path(MODEL_PATH, options).unwrap();
         interpreter

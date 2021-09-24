@@ -7,7 +7,7 @@
 //! let model = Model::new("tests/add.bin")?;
 //! # Ok::<(), tflitec::Error>(())
 //! ```
-use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete, TfLiteModelCreate};
+use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};
 use crate::{Error, ErrorKind, Result};
 use std::ffi::CString;
 

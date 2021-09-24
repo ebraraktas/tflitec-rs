@@ -31,10 +31,8 @@ fn prepare_tensorflow_repo() -> PathBuf {
         let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
         let bazel_build_path = root.join("build-res/tflitec_with_xnnpack_BUILD.bazel");
         let target = tgt_result.join("tensorflow/lite/c/tmp/BUILD");
-        std::fs::create_dir_all(target.parent().unwrap())
-            .expect("Cannot create tmp directory");
-        std::fs::copy(bazel_build_path, target)
-            .expect("Cannot copy temporary BUILD file");
+        std::fs::create_dir_all(target.parent().unwrap()).expect("Cannot create tmp directory");
+        std::fs::copy(bazel_build_path, target).expect("Cannot copy temporary BUILD file");
     }
     tgt_result
 }
@@ -101,7 +99,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
     let bazel_target;
     if os != "ios" {
         let ext = if os != "macos" { "so" } else { "dylib" };
-        let sub_directory = if cfg!(feature="xnnpack") {
+        let sub_directory = if cfg!(feature = "xnnpack") {
             "/tmp"
         } else {
             ""
@@ -130,29 +128,20 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         panic!("Cannot configure tensorflow")
     }
     let mut bazel = std::process::Command::new("bazel");
-    bazel
-        .arg("build")
-        .arg("-c")
-        .arg("opt");
+    bazel.arg("build").arg("-c").arg("opt");
 
     #[cfg(any(feature = "xnnpack_qu8", feature = "xnnpack_qs8"))]
     {
-        bazel
-            .arg("--define")
-            .arg("tflite_with_xnnpack=true");
+        bazel.arg("--define").arg("tflite_with_xnnpack=true");
     }
 
     #[cfg(feature = "xnnpack_qs8")]
     {
-        bazel
-            .arg("--define")
-            .arg("xnn_enable_qs8=true");
+        bazel.arg("--define").arg("xnn_enable_qs8=true");
     }
     #[cfg(feature = "xnnpack_qu8")]
     {
-        bazel
-            .arg("--define")
-            .arg("xnn_enable_qu8=true");
+        bazel.arg("--define").arg("xnn_enable_qu8=true");
     }
 
     bazel
@@ -251,12 +240,12 @@ fn main() {
                 .unwrap(),
         );
     if cfg!(feature = "xnnpack") {
-        builder = builder
-            .header(tf_src_path
-                        .join("tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h")
-                        .to_str()
-                        .unwrap(),
-            );
+        builder = builder.header(
+            tf_src_path
+                .join("tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h")
+                .to_str()
+                .unwrap(),
+        );
     }
 
     let bindings = builder
