@@ -1,4 +1,4 @@
-This crate is safe Rust wrapper of [TensorFlow Lite C API].
+This crate is a safe Rust wrapper of [TensorFlow Lite C API].
 Its API is very similar to that of [TensorFlow Lite Swift API].
 
 # Supported Targets
@@ -27,7 +27,7 @@ should be enabled manually.
 
 # Examples
 
-The example below shows running inference on TensorFlow Lite model.
+The example below shows running inference on a TensorFlow Lite model.
 
 ```rust
 use tflitec::interpreter::{Interpreter, Options};
