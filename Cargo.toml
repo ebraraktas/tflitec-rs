@@ -11,7 +11,7 @@ name = "tflitec"
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.53.1"
+bindgen = "0.59.1"
 
 [features]
 xnnpack = []
