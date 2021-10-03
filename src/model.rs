@@ -10,11 +10,19 @@
 use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};
 use crate::{Error, ErrorKind, Result};
 use std::ffi::CString;
+use std::fmt::{Debug, Formatter};
 
 /// A TensorFlow Lite model used by the [`Interpreter`][crate::interpreter::Interpreter] to perform inference.
 pub struct Model {
     /// The underlying [`TfLiteModel`] C pointer.
     pub(crate) model_ptr: *mut TfLiteModel,
+}
+
+impl Debug for Model {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Model")
+            .finish()
+    }
 }
 
 unsafe impl Send for Model {}

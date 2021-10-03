@@ -4,12 +4,13 @@ use std::ffi::CStr;
 use crate::bindings;
 use crate::bindings::*;
 use crate::{Error, ErrorKind, Result};
+use std::fmt::{Debug, Formatter};
 
 /// Parameters that determine the mapping of quantized values to real values.
 ///
 /// Quantized values can be mapped to float values using the following conversion:
 /// `realValue = scale * (quantizedValue - zeroPoint)`.
-#[derive(Copy, Clone, PartialEq, Debug)]
+#[derive(Copy, Clone, PartialEq, Debug, PartialOrd)]
 pub struct QuantizationParameters {
     /// The difference between real values corresponding to consecutive quantized
     /// values differing by 1. For example, the range of quantized values for `u8`
@@ -35,7 +36,7 @@ impl QuantizationParameters {
 }
 
 /// The supported [`Tensor`] data types.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum DataType {
     /// A boolean.
     Bool,
@@ -80,6 +81,7 @@ impl DataType {
     }
 }
 
+#[derive(Clone, Eq, PartialEq, Debug, Hash)]
 /// The shape of a [`Tensor`].
 pub struct Shape {
     /// The number of dimensions of the [`Tensor`]
@@ -145,6 +147,17 @@ pub struct Tensor {
 
     /// The quantization parameters for the `Tensor` if using a quantized model.
     quantization_parameters: Option<QuantizationParameters>,
+}
+
+impl Debug for Tensor {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Tensor")
+            .field("name", &self.name)
+            .field("shape", &self.shape)
+            .field("data_type", &self.data_type)
+            .field("quantization_parameters", &self.quantization_parameters)
+            .finish()
+    }
 }
 
 impl Tensor {

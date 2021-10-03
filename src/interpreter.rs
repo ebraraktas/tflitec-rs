@@ -7,6 +7,7 @@ use crate::model::Model;
 use crate::tensor;
 use crate::tensor::Tensor;
 use crate::{Error, ErrorKind, Result};
+use std::fmt::{Debug, Formatter};
 
 /// Options for configuring the [`Interpreter`].
 #[derive(Debug, Eq, PartialEq, Copy, Clone, Hash, Ord, PartialOrd)]
@@ -66,6 +67,13 @@ pub struct Interpreter {
     xnnpack_delegate_ptr: Option<*mut TfLiteDelegate>,
 }
 
+impl Debug for Interpreter {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Interpreter")
+            .field("options", &self.options)
+            .finish()
+    }
+}
 unsafe impl Send for Interpreter {}
 
 impl Interpreter {
