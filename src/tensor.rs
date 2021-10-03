@@ -1,5 +1,5 @@
 //! TensorFlow Lite input or output [`Tensor`] associated with an interpreter.
-use std::ffi::CStr;
+use std::ffi::{CStr, c_void};
 
 use crate::bindings;
 use crate::bindings::*;
@@ -133,6 +133,9 @@ pub struct Tensor {
 
     /// The quantization parameters for the `Tensor` if using a quantized model.
     quantization_parameters: Option<QuantizationParameters>,
+
+    /// The underlying [`TfLiteTensor`] C pointer.
+    tensor_ptr: *mut TfLiteTensor,
 }
 
 impl Debug for Tensor {
@@ -147,22 +150,6 @@ impl Debug for Tensor {
 }
 
 impl Tensor {
-    pub(crate) fn new(
-        name: String,
-        data_type: DataType,
-        shape: Shape,
-        data: TensorData,
-        quantization_parameters: Option<QuantizationParameters>,
-    ) -> Tensor {
-        Tensor {
-            name,
-            data_type,
-            shape,
-            data,
-            quantization_parameters,
-        }
-    }
-
     pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor> {
         unsafe {
             if tensor_ptr.is_null() {
@@ -202,8 +189,14 @@ impl Tensor {
                     zero_point: quantization_parameters_ptr.zero_point,
                 })
             };
-            let tensor = Tensor::new(name, data_type, shape, data, quantization_parameters);
-            Ok(tensor)
+            Ok(Tensor {
+                name,
+                data_type,
+                shape,
+                data,
+                quantization_parameters,
+                tensor_ptr,
+            })
         }
     }
 
@@ -231,6 +224,29 @@ impl Tensor {
                 self.data.data_ptr as *const T,
                 self.data.data_length / element_size,
             )
+        }
+    }
+
+    pub fn set_data<T>(&self, data:&[T]) -> Result<()> {
+        let element_size = std::mem::size_of::<T>();
+        let input_byte_count = element_size * data.len();
+        if self.data.data_length != input_byte_count {
+            return Err(Error::new(ErrorKind::InvalidTensorDataCount(
+                data.len(),
+                input_byte_count,
+            )));
+        }
+        let status = unsafe {
+            TfLiteTensorCopyFromBuffer(
+                self.tensor_ptr,
+                data.as_ptr() as *const c_void,
+                input_byte_count as size_t,
+            )
+        };
+        if status != TfLiteStatus_kTfLiteOk {
+            Err(Error::new(ErrorKind::FailedToCopyDataToInputTensor))
+        } else {
+            Ok(())
         }
     }
 

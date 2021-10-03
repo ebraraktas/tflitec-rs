@@ -41,18 +41,24 @@ options.thread_count = 1;
 let interpreter = Interpreter::with_model_path("tests/add.bin", Some(options))?;
 // Resize input
 let input_shape = tensor::Shape::new(vec![10, 8, 8, 3]);
-interpreter
-    .resize_input(0, input_shape)?;
+interpreter.resize_input(0, input_shape)?;
 // Allocate tensors if you just created Interpreter or resized its inputs
-interpreter
-    .allocate_tensors()?;
+interpreter.allocate_tensors()?;
 
 // Create dummy input
 let input_element_count = 10 * 8 * 8 * 3;
 let data = (0..input_element_count).map(|x| x as f32).collect::<Vec<f32>>();
 
+let input_tensor = interpreter.input(0)?;
+assert_eq!(input_tensor.data_type(), tensor::DataType::Float32);
+
 // Copy input to buffer of first tensor (with index 0)
+// You have 2 options:
+// Set data using Tensor handle if you have it already
+assert!(input_tensor.set_data(&data[..]).is_ok());
+// Or set data using Interpreter:
 assert!(interpreter.copy(&data[..], 0).is_ok());
+
 // Invoke interpreter
 assert!(interpreter.invoke().is_ok());
 
@@ -63,6 +69,7 @@ assert_eq!(output_tensor.shape().dimensions(), &vec![10, 8, 8, 3]);
 let output_vector = output_tensor.data::<f32>().to_vec();
 let expected: Vec<f32> = data.iter().map(|e| e * 3.0).collect();
 assert_eq!(expected, output_vector);
+# // The line below is needed for doctest, please ignore it
 # Ok::<(), tflitec::Error>(())
 ```
 
