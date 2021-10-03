@@ -193,7 +193,7 @@ impl Interpreter {
     ///
     /// # Errors
     ///
-    /// Returns error if you did not called [`Interpreter::allocate_tensors()`] before calling this
+    /// Returns error if [`Interpreter::allocate_tensors()`] was not called before calling this
     /// or given index is not a valid input tensor index in
     /// [0, [`Interpreter::input_tensor_count()`]).
     pub fn input(&self, index: usize) -> Result<Tensor> {
@@ -223,7 +223,7 @@ impl Interpreter {
     ///
     /// Returns error if given index is not a valid output tensor index in
     /// [0, [`Interpreter::output_tensor_count()`]). And, it may return error
-    /// if the output tensor has been both sized and allocated. In general,
+    /// unless the output tensor has been both sized and allocated. In general,
     /// best practice is to call this *after* calling [`Interpreter::invoke()`].
     pub fn output(&self, index: usize) -> Result<Tensor> {
         let max_index = self.output_tensor_count() - 1;
@@ -353,7 +353,7 @@ impl Interpreter {
     ///
     /// # Errors
     ///
-    /// Return error if byte count of the data does not match the buffer size of the
+    /// Returns error if byte count of the data does not match the buffer size of the
     /// input tensor or the given index is not a valid input tensor index in
     /// [0, [`Interpreter::input_tensor_count()`]) or TensorFlow Lite C fails internally.
     pub fn copy<T>(&self, data: &[T], index: usize) -> Result<()> {
