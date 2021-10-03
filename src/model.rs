@@ -20,8 +20,7 @@ pub struct Model {
 
 impl Debug for Model {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("Model")
-            .finish()
+        f.debug_struct("Model").finish()
     }
 }
 

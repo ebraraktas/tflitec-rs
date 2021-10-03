@@ -1,5 +1,5 @@
 //! TensorFlow Lite input or output [`Tensor`] associated with an interpreter.
-use std::ffi::{CStr, c_void};
+use std::ffi::{c_void, CStr};
 
 use crate::bindings;
 use crate::bindings::*;
@@ -227,7 +227,7 @@ impl Tensor {
         }
     }
 
-    pub fn set_data<T>(&self, data:&[T]) -> Result<()> {
+    pub fn set_data<T>(&self, data: &[T]) -> Result<()> {
         let element_size = std::mem::size_of::<T>();
         let input_byte_count = element_size * data.len();
         if self.data.data_length != input_byte_count {
