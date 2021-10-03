@@ -3,6 +3,11 @@ name = "tflitec"
 version = "0.2.0"
 authors = ["ebraraktas <ebrar@voys.ai>"]
 edition = "2018"
+license = "MIT"
+description = "A safe Rust wrapper of TensorFlow Lite C API supporting x86_64 and ARM (iOS, Android)"
+repository = "https://github.com/VoysAI/tflitec-rs"
+keywords = ["bindings", "tensorflow", "machine-learning", "ffi", "ios", "android", "cross-platform"]
+categories = ["api-bindings", "science"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
