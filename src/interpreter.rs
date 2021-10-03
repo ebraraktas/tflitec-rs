@@ -368,7 +368,7 @@ impl Drop for Interpreter {
 
 #[cfg(test)]
 mod tests {
-    use crate::interpreter::{Interpreter, Options};
+    use crate::interpreter::Interpreter;
     use crate::tensor;
     use crate::ErrorKind;
 
@@ -458,6 +458,7 @@ mod tests {
     #[cfg(feature = "xnnpack")]
     #[test]
     fn test_interpreter_invoke_xnnpack() {
+        use crate::interpreter::Options;
         let options = Some(Options {
             thread_count: 2,
             is_xnnpack_enabled: true,
