@@ -33,6 +33,10 @@ impl Model {
     /// # Arguments
     ///
     /// * `filepath`: The local file path to a TensorFlow Lite model.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if TensorFlow Lite C fails to read model from file.
     pub fn new(filepath: &str) -> Result<Model> {
         let model_ptr = unsafe {
             let path = CString::new(filepath).unwrap();

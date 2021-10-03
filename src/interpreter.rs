@@ -93,6 +93,10 @@ impl Interpreter {
     /// let interpreter = Interpreter::new(&model, None)?;
     /// # Ok::<(), tflitec::Error>(())
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns error if TensorFlow Lite C fails internally.
     pub fn new(model: &Model, options: Option<Options>) -> Result<Interpreter> {
         unsafe {
             let options_ptr = TfLiteInterpreterOptionsCreate();
@@ -148,6 +152,11 @@ impl Interpreter {
     /// let interpreter = Interpreter::with_model_path("tests/add.bin", None)?;
     /// # Ok::<(), tflitec::Error>(())
     /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns error if TensorFlow Lite C fails internally while reading [`Model`] or creating
+    /// [`Interpreter`].
     pub fn with_model_path(model_path: &str, options: Option<Options>) -> Result<Interpreter> {
         let model = Model::new(model_path)?;
         Interpreter::new(&model, options)
@@ -164,6 +173,10 @@ impl Interpreter {
     }
 
     /// Invokes the interpreter to perform inference from the loaded graph.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if TensorFlow Lite C fails to invoke.
     pub fn invoke(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk == unsafe { TfLiteInterpreterInvoke(self.interpreter_ptr) } {
             Ok(())
@@ -178,7 +191,11 @@ impl Interpreter {
     ///
     /// * `index`: The index for the input [`Tensor`].
     ///
-    /// returns: `Result<Tensor, Error>`
+    /// # Errors
+    ///
+    /// Returns error if you did not called [`Interpreter::allocate_tensors()`] before calling this
+    /// or given index is not a valid input tensor index in
+    /// [0, [`Interpreter::input_tensor_count()`]).
     pub fn input(&self, index: usize) -> Result<Tensor> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
@@ -202,7 +219,12 @@ impl Interpreter {
     ///
     /// * `index`: The index for the output [`Tensor`].
     ///
-    /// returns: `Result<Tensor, Error>`
+    /// # Errors
+    ///
+    /// Returns error if given index is not a valid output tensor index in
+    /// [0, [`Interpreter::output_tensor_count()`]). And, it may return error
+    /// if the output tensor has been both sized and allocated. In general,
+    /// best practice is to call this *after* calling [`Interpreter::invoke()`].
     pub fn output(&self, index: usize) -> Result<Tensor> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
@@ -232,7 +254,10 @@ impl Interpreter {
     /// * `index`: The index for the input [`Tensor`].
     /// * `shape`: The shape to resize the input [`Tensor`] to.
     ///
-    /// returns: `Result<(), Error>`
+    /// # Errors
+    ///
+    /// Returns error if given index is not a valid input tensor index in
+    /// [0, [`Interpreter::input_tensor_count()`]) or TensorFlow Lite C fails internally.
     pub fn resize_input(&self, index: usize, shape: tensor::Shape) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
@@ -260,12 +285,15 @@ impl Interpreter {
         }
     }
 
-    /// Allocates memory for all input [`Tensor`]s based on their [`Shape`][tensor::Shape]s.
+    /// Allocates memory for all input [`Tensor`]s and dependent tensors based on
+    /// their [`Shape`][tensor::Shape]s.
     ///
     /// - Note: This is a relatively expensive operation and should only be called
     /// after creating the interpreter and resizing any input tensors.
     ///
-    /// returns: An [`ErrorKind::FailedToAllocateTensors`] if memory could not be allocated
+    /// # Error
+    ///
+    /// Returns error if TensorFlow Lite C fails to allocate memory
     /// for the input tensors.
     pub fn allocate_tensors(&self) -> Result<()> {
         if TfLiteStatus_kTfLiteOk
@@ -284,8 +312,11 @@ impl Interpreter {
     /// * `data`: The data to be copied to the input `Tensor`'s data buffer
     /// * `index`: The index for the input `Tensor`
     ///
-    /// returns: An [Error] if the `data.len()` does not match the input tensor's
-    /// `data.len()` or if the given index is invalid.
+    /// # Errors
+    ///
+    /// Return error if the data length does not match the buffer size of the input tensor or
+    /// the given index is not a valid input tensor index in
+    /// [0, [`Interpreter::input_tensor_count()`]) or TensorFlow Lite C fails internally.
     fn copy_bytes(&self, data: &[u8], index: usize) -> Result<()> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
@@ -320,8 +351,11 @@ impl Interpreter {
     /// * `data`: The data to be copied to the input `Tensor`'s data buffer.
     /// * `index`: The index for the input [`Tensor`].
     ///
-    /// returns: An [Error] if the byte count of `data` does not match the input tensor's
-    /// buffer size or if the given `index` is invalid.
+    /// # Errors
+    ///
+    /// Return error if byte count of the data does not match the buffer size of the
+    /// input tensor or the given index is not a valid input tensor index in
+    /// [0, [`Interpreter::input_tensor_count()`]) or TensorFlow Lite C fails internally.
     pub fn copy<T>(&self, data: &[T], index: usize) -> Result<()> {
         let element_size = std::mem::size_of::<T>();
         let d = unsafe {

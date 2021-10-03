@@ -227,6 +227,16 @@ impl Tensor {
         }
     }
 
+    /// Sets data of the tensor by copying given data slice
+    ///
+    /// # Arguments
+    ///
+    /// * `data`: Data to be copied
+    ///
+    /// # Errors
+    ///
+    /// Returns error if byte count of the data does not match the buffer size of the
+    /// input tensor or TensorFlow Lite C fails internally.
     pub fn set_data<T>(&self, data: &[T]) -> Result<()> {
         let element_size = std::mem::size_of::<T>();
         let input_byte_count = element_size * data.len();
