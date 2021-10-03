@@ -21,20 +21,6 @@ pub struct QuantizationParameters {
     pub zero_point: i32,
 }
 
-impl QuantizationParameters {
-    /// Creates a new instance with the given values.
-    ///
-    /// # Arguments
-    ///
-    /// * `scale`: The scale value for asymmetric quantization
-    /// * `zero_point`: The zero point for asymmetric quantization
-    ///
-    /// returns: QuantizationParameters
-    pub(crate) fn new(scale: f32, zero_point: i32) -> QuantizationParameters {
-        QuantizationParameters { scale, zero_point }
-    }
-}
-
 /// The supported [`Tensor`] data types.
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum DataType {
@@ -211,10 +197,10 @@ impl Tensor {
             let quantization_parameters = if scale == 0.0 || data_type != DataType::Uint8 {
                 None
             } else {
-                Some(QuantizationParameters::new(
-                    quantization_parameters_ptr.scale,
-                    quantization_parameters_ptr.zero_point,
-                ))
+                Some(QuantizationParameters {
+                    scale: quantization_parameters_ptr.scale,
+                    zero_point: quantization_parameters_ptr.zero_point,
+                })
             };
             let tensor = Tensor::new(name, data_type, shape, data, quantization_parameters);
             Ok(tensor)
