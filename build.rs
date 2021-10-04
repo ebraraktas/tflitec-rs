@@ -117,23 +117,6 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         output_path_buf = out_dir().join("TensorFlowLiteC.framework");
     };
 
-    if std::env::var("DOCS_RS") == Ok(String::from("1")) {
-        let mut unzip = std::process::Command::new("unzip");
-        let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-        unzip.arg(root.join("build-res/docsrs_res.zip"))
-            .arg("-d")
-            .arg(out_dir());
-        let bindings_path = out_dir().join("bindings.rs");
-        if !(unzip.status()
-            .unwrap_or_else(|_| panic!("Cannot execute unzip"))
-            .success()
-            && output_path_buf.exists()
-            && bindings_path.exists()) {
-            panic!("Cannot extract docs.rs resources")
-        }
-        return output_path_buf;
-    };
-
     let python_bin_path = env::var("PYTHON_BIN_PATH").expect("Cannot read PYTHON_BIN_PATH");
     if !std::process::Command::new(&python_bin_path)
         .arg("configure.py")
@@ -210,6 +193,25 @@ fn out_dir() -> PathBuf {
     PathBuf::from(env::var("OUT_DIR").unwrap())
 }
 
+fn prepare_for_docsrs() {
+    // Docs.rs cannot access to network, use resource files
+    let library_path = out_dir().join("libtensorflowlite_c.so");
+    let bindings_path = out_dir().join("bindings.rs");
+
+    let mut unzip = std::process::Command::new("unzip");
+    let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+    unzip.arg(root.join("build-res/docsrs_res.zip"))
+        .arg("-d")
+        .arg(out_dir());
+    if !(unzip.status()
+        .unwrap_or_else(|_| panic!("Cannot execute unzip"))
+        .success()
+        && library_path.exists()
+        && bindings_path.exists()) {
+        panic!("Cannot extract docs.rs resources")
+    }
+}
+
 fn main() {
     println!("cargo:rerun-if-env-changed=BAZEL_COPTS");
 
@@ -234,49 +236,53 @@ fn main() {
         println!("cargo:rustc-link-search=framework={}", out_path.display());
         println!("cargo:rustc-link-lib=framework=TensorFlowLiteC");
     }
-
-    let config = if os == "android" || os == "ios" {
-        format!("{}_{}", os, arch)
+    if std::env::var("DOCS_RS") == Ok(String::from("1")) {
+        // docs.rs cannot access to network, use resource files
+        prepare_for_docsrs();
     } else {
-        os
-    };
-    let tf_src_path = prepare_tensorflow_repo();
-    check_and_set_envs();
-    build_tensorflow_with_bazel(tf_src_path.to_str().unwrap(), config.as_str());
+        let config = if os == "android" || os == "ios" {
+            format!("{}_{}", os, arch)
+        } else {
+            os
+        };
+        let tf_src_path = prepare_tensorflow_repo();
+        check_and_set_envs();
+        build_tensorflow_with_bazel(tf_src_path.to_str().unwrap(), config.as_str());
 
-    // The bindgen::Builder is the main entry point
-    // to bindgen, and lets you build up options for
-    // the resulting bindings.
-    let mut builder = bindgen::Builder::default()
-        // The input header we would like to generate
-        // bindings for.
-        .header(
-            tf_src_path
-                .join("tensorflow/lite/c/c_api.h")
-                .to_str()
-                .unwrap(),
-        );
-    if cfg!(feature = "xnnpack") {
-        builder = builder.header(
-            tf_src_path
-                .join("tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h")
-                .to_str()
-                .unwrap(),
-        );
+        // The bindgen::Builder is the main entry point
+        // to bindgen, and lets you build up options for
+        // the resulting bindings.
+        let mut builder = bindgen::Builder::default()
+            // The input header we would like to generate
+            // bindings for.
+            .header(
+                tf_src_path
+                    .join("tensorflow/lite/c/c_api.h")
+                    .to_str()
+                    .unwrap(),
+            );
+        if cfg!(feature = "xnnpack") {
+            builder = builder.header(
+                tf_src_path
+                    .join("tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h")
+                    .to_str()
+                    .unwrap(),
+            );
+        }
+
+        let bindings = builder
+            .clang_arg(format!("-I{}", tf_src_path.to_str().unwrap()))
+            // Tell cargo to invalidate the built crate whenever any of the
+            // included header files changed.
+            .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+            // Finish the builder and generate the bindings.
+            .generate()
+            // Unwrap the Result and panic on failure.
+            .expect("Unable to generate bindings");
+
+        // Write the bindings to the $OUT_DIR/bindings.rs file.
+        bindings
+            .write_to_file(out_path.join("bindings.rs"))
+            .expect("Couldn't write bindings!");
     }
-
-    let bindings = builder
-        .clang_arg(format!("-I{}", tf_src_path.to_str().unwrap()))
-        // Tell cargo to invalidate the built crate whenever any of the
-        // included header files changed.
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
-        // Finish the builder and generate the bindings.
-        .generate()
-        // Unwrap the Result and panic on failure.
-        .expect("Unable to generate bindings");
-
-    // Write the bindings to the $OUT_DIR/bindings.rs file.
-    bindings
-        .write_to_file(out_path.join("bindings.rs"))
-        .expect("Couldn't write bindings!");
 }
