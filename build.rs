@@ -117,6 +117,23 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         output_path_buf = out_dir().join("TensorFlowLiteC.framework");
     };
 
+    if std::env::var("DOCS_RS") == Ok(String::from("1")) {
+        let mut unzip = std::process::Command::new("unzip");
+        let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
+        unzip.arg(root.join("build-res/docsrs_res.zip"))
+            .arg("-d")
+            .arg(out_dir());
+        let bindings_path = out_dir().join("bindings.rs");
+        if !(unzip.status()
+            .unwrap_or_else(|_| panic!("Cannot execute unzip"))
+            .success()
+            && output_path_buf.exists()
+            && bindings_path.exists()) {
+            panic!("Cannot extract docs.rs resources")
+        }
+        return output_path_buf;
+    };
+
     let python_bin_path = env::var("PYTHON_BIN_PATH").expect("Cannot read PYTHON_BIN_PATH");
     if !std::process::Command::new(&python_bin_path)
         .arg("configure.py")
