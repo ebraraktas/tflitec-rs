@@ -5,6 +5,7 @@ use crate::bindings;
 use crate::bindings::*;
 use crate::{Error, ErrorKind, Result};
 use std::fmt::{Debug, Formatter};
+use std::marker::PhantomData;
 
 /// Parameters that determine the mapping of quantized values to real values.
 ///
@@ -118,7 +119,7 @@ pub(crate) struct TensorData {
 }
 
 /// An input or output tensor in a TensorFlow Lite graph.
-pub struct Tensor {
+pub struct Tensor<'a> {
     /// The name of the `Tensor`.
     name: String,
 
@@ -136,9 +137,12 @@ pub struct Tensor {
 
     /// The underlying [`TfLiteTensor`] C pointer.
     tensor_ptr: *mut TfLiteTensor,
+
+    // To set lifetime of the Tensor
+    phantom: PhantomData<&'a TfLiteTensor>,
 }
 
-impl Debug for Tensor {
+impl Debug for Tensor<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Tensor")
             .field("name", &self.name)
@@ -149,8 +153,8 @@ impl Debug for Tensor {
     }
 }
 
-impl Tensor {
-    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor> {
+impl<'a> Tensor<'a> {
+    pub(crate) fn from_raw(tensor_ptr: *mut TfLiteTensor) -> Result<Tensor<'a>> {
         unsafe {
             if tensor_ptr.is_null() {
                 return Err(Error::new(ErrorKind::ReadTensorError));
@@ -196,6 +200,7 @@ impl Tensor {
                 data,
                 quantization_parameters,
                 tensor_ptr,
+                phantom: PhantomData,
             })
         }
     }
