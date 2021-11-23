@@ -76,7 +76,7 @@ impl Debug for Interpreter {
 }
 unsafe impl Send for Interpreter {}
 
-impl Interpreter {
+impl<'a> Interpreter {
     /// Creates new [`Interpreter`]
     ///
     /// # Arguments
@@ -196,7 +196,7 @@ impl Interpreter {
     /// Returns error if [`Interpreter::allocate_tensors()`] was not called before calling this
     /// or given index is not a valid input tensor index in
     /// [0, [`Interpreter::input_tensor_count()`]).
-    pub fn input(&self, index: usize) -> Result<Tensor> {
+    pub fn input(&'a self, index: usize) -> Result<Tensor<'a>> {
         let max_index = self.input_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
@@ -225,7 +225,7 @@ impl Interpreter {
     /// [0, [`Interpreter::output_tensor_count()`]). And, it may return error
     /// unless the output tensor has been both sized and allocated. In general,
     /// best practice is to call this *after* calling [`Interpreter::invoke()`].
-    pub fn output(&self, index: usize) -> Result<Tensor> {
+    pub fn output(&'a self, index: usize) -> Result<Tensor<'a>> {
         let max_index = self.output_tensor_count() - 1;
         if index > max_index {
             return Err(Error::new(ErrorKind::InvalidTensorIndex(index, max_index)));
