@@ -43,7 +43,7 @@ fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, des
 
 fn test_python_bin(python_bin_path: &str) -> bool {
     if let Ok(status) = std::process::Command::new(python_bin_path)
-        .args(&["-c", "print('test')"])
+        .args(&["-c", "import numpy"])
         .status()
     {
         status.success()
