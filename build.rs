@@ -20,7 +20,7 @@ fn dll_extension() -> &'static str {
     }
 }
 
-fn dll_suffix() -> &'static str {
+fn dll_prefix() -> &'static str {
     match target_os().as_str() {
         "windows" => "",
         _ => "lib",
@@ -175,10 +175,10 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         if !sub_directory.is_empty() {
             lib_out_dir = lib_out_dir.join(&sub_directory[1..]);
         }
-        let lib_suffix = dll_suffix();
-        bazel_output_path_buf = lib_out_dir.join(format!("{}tensorflowlite_c.{}", lib_suffix, ext));
+        let lib_prefix = dll_prefix();
+        bazel_output_path_buf = lib_out_dir.join(format!("{}tensorflowlite_c.{}", lib_prefix, ext));
         bazel_target = format!("//tensorflow/lite/c{}:tensorflowlite_c", sub_directory);
-        lib_output_path_buf = out_dir().join(format!("{}tensorflowlite_c.{}", lib_suffix, ext));
+        lib_output_path_buf = out_dir().join(format!("{}tensorflowlite_c.{}", lib_prefix, ext));
     } else {
         bazel_output_path_buf = PathBuf::from(tf_src_path)
             .join("bazel-bin")
