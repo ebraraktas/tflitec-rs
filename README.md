@@ -8,6 +8,7 @@ Targets below are tested. However, others may work, too.
 * MacOS: `x86_64-apple-darwin`
 * Linux: `x86_64-unknown-linux-gnu`
 * Android: `aarch64-linux-android` and `armv7-linux-androideabi`
+* Windows ([see details](#Windows))
 
 See [compilation](#compilation) section to see build instructions for your target. Please
 read [Optimized Build](#optimized_build) section carefully.
@@ -32,13 +33,15 @@ The example below shows running inference on a TensorFlow Lite model.
 ```rust
 use tflitec::interpreter::{Interpreter, Options};
 use tflitec::tensor;
+use std::path::MAIN_SEPARATOR;
 
 // Create interpreter options
 let mut options = Options::default();
 options.thread_count = 1;
 
 // Load example model which outputs y = 3 * x
-let interpreter = Interpreter::with_model_path("tests/add.bin", Some(options))?;
+let path = format!("tests{}add.bin", MAIN_SEPARATOR);
+let interpreter = Interpreter::with_model_path(&path, Some(options))?;
 // Resize input
 let input_shape = tensor::Shape::new(vec![10, 8, 8, 3]);
 interpreter.resize_input(0, input_shape)?;
@@ -82,7 +85,7 @@ You won't need this most of the time, because the crate output is linked appropr
 For all environments and targets you will need to have:
 
 * `git` CLI to fetch [TensorFlow]
-* [Bazel] to build [TensorFlow], supported versions: `[3.7.2, 4.99.0]`
+* [Bazel] to build [TensorFlow], supported versions: `[3.7.2, 3.99.0]`
 * Python3 to build [TensorFlow]
 
 ## Optimized Build
@@ -117,6 +120,18 @@ BINDGEN_EXTRA_CLANG_ARGS="\
 ```
 * (Recommended) [cargo-ndk] simplifies `cargo build` process.
 
+## Windows
+
+Windows support is experimental. It is tested on Windows 10. You should follow instructions in
+the `Setup for Windows` section on [TensorFlow Build Instructions for Windows]. In other words,
+you should install following before build:
+* Python 3.8.x 64 bit (the instructions suggest 3.6.x but this package is tested with 3.8.x)
+* Bazel, supported versions: `[3.7.2, 3.99.0]`
+* [MSYS2]
+* Visual C++ Build Tools 2019
+
+Do not forget to add relevant paths to `%PATH%` environment variable by following the 
+[TensorFlow Build Instructions for Windows] **carefully** (the only exception is the Python version). 
 
 [TensorFlow]: https://www.tensorflow.org/
 [Bazel]: https://bazel.build/
@@ -129,3 +144,5 @@ BINDGEN_EXTRA_CLANG_ARGS="\
 [Android NDK]: https://developer.android.com/ndk/guides
 [cargo documentation]: https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-sets-for-crates
 [cargo-ndk]: https://github.com/bbqsrc/cargo-ndk
+[TensorFlow Build Instructions for Windows]: https://www.tensorflow.org/install/source_windows
+[MSYS2]: https://www.msys2.org/

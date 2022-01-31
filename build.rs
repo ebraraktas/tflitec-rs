@@ -1,11 +1,85 @@
 extern crate bindgen;
 
 use std::env;
-use std::path::PathBuf;
+use std::fmt::Debug;
+use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 const TF_BRANCH: &str = "r2.6";
 const TF_GIT_URL: &str = "https://github.com/tensorflow/tensorflow.git";
+
+fn target_os() -> String {
+    env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS")
+}
+
+fn dll_extension() -> &'static str {
+    match target_os().as_str() {
+        "macos" => "dylib",
+        "windows" => "dll",
+        _ => "so",
+    }
+}
+
+fn dll_prefix() -> &'static str {
+    match target_os().as_str() {
+        "windows" => "",
+        _ => "lib",
+    }
+}
+
+fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, dest: Q) {
+    let src_path: &Path = src.as_ref();
+    let dest_path: &Path = dest.as_ref();
+    if dest_path.exists() {
+        if dest_path.is_file() {
+            std::fs::remove_file(&dest_path).expect("Cannot remove file");
+        } else {
+            std::fs::remove_dir_all(&dest_path).expect("Cannot remove directory");
+        }
+    }
+    std::fs::copy(src_path, dest_path)
+        .unwrap_or_else(|_| panic!("Cannot copy from {:?} to {:?}", src, dest));
+}
+
+fn test_python_bin(python_bin_path: &str) -> bool {
+    if let Ok(status) = std::process::Command::new(python_bin_path)
+        .args(&["-c", "import numpy"])
+        .status()
+    {
+        status.success()
+    } else {
+        false
+    }
+}
+
+fn get_python_bin_path() -> Option<PathBuf> {
+    if let Ok(val) = std::env::var("PYTHON_BIN_PATH") {
+        Some(PathBuf::from(val))
+    } else {
+        let bin = if target_os() == "windows" {
+            "where"
+        } else {
+            "which"
+        };
+        if let Ok(x) = std::process::Command::new(bin).arg("python3").output() {
+            for path in String::from_utf8(x.stdout).unwrap().lines() {
+                if test_python_bin(path) {
+                    return Some(PathBuf::from(path));
+                }
+            }
+        }
+        if let Ok(x) = std::process::Command::new(bin).arg("python").output() {
+            for path in String::from_utf8(x.stdout).unwrap().lines() {
+                if test_python_bin(path) {
+                    return Some(PathBuf::from(path));
+                }
+            }
+            None
+        } else {
+            None
+        }
+    }
+}
 
 fn prepare_tensorflow_repo() -> PathBuf {
     let tgt_result = out_dir().join("tensorflow");
@@ -38,19 +112,7 @@ fn prepare_tensorflow_repo() -> PathBuf {
 }
 
 fn check_and_set_envs() {
-    // TODO: this won't work on Windows
-    let python_bin_path = PathBuf::from(
-        String::from_utf8(
-            std::process::Command::new("which")
-                .arg("python3")
-                .output()
-                .or_else(|_| std::process::Command::new("which").arg("python").output())
-                .expect("Cannot get python path")
-                .stdout,
-        )
-        .expect("Cannot decode utf8")
-        .trim(),
-    );
+    let python_bin_path = get_python_bin_path().expect("Cannot find Python binary");
     let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
     let default_envs = [
         ["PYTHON_BIN_PATH", python_bin_path.to_str().unwrap()],
@@ -62,6 +124,7 @@ fn check_and_set_envs() {
         ["TF_NEED_MPI", "0"],
         ["TF_NEED_ROCM", "0"],
         ["TF_NEED_CUDA", "0"],
+        ["TF_OVERRIDE_EIGEN_STRONG_INLINE", "1"], // Windows only
         ["CC_OPT_FLAGS", "-Wno-sign-compare"],
         [
             "TF_SET_ANDROID_WORKSPACE",
@@ -93,28 +156,38 @@ fn check_and_set_envs() {
 }
 
 fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
-    let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
-    let output_path_buf;
+    let target_os = target_os();
+    let lib_output_path_buf;
     let bazel_output_path_buf;
     let bazel_target;
-    if os != "ios" {
-        let ext = if os != "macos" { "so" } else { "dylib" };
+    if target_os != "ios" {
+        let ext = dll_extension();
         let sub_directory = if cfg!(feature = "xnnpack") {
             "/tmp"
         } else {
             ""
         };
-        bazel_output_path_buf = PathBuf::from(tf_src_path).join(format!(
-            "bazel-bin/tensorflow/lite/c{}/libtensorflowlite_c.{}",
-            sub_directory, ext
-        ));
+        let mut lib_out_dir = PathBuf::from(tf_src_path)
+            .join("bazel-bin")
+            .join("tensorflow")
+            .join("lite")
+            .join("c");
+        if !sub_directory.is_empty() {
+            lib_out_dir = lib_out_dir.join(&sub_directory[1..]);
+        }
+        let lib_prefix = dll_prefix();
+        bazel_output_path_buf = lib_out_dir.join(format!("{}tensorflowlite_c.{}", lib_prefix, ext));
         bazel_target = format!("//tensorflow/lite/c{}:tensorflowlite_c", sub_directory);
-        output_path_buf = out_dir().join(format!("libtensorflowlite_c.{}", ext));
+        lib_output_path_buf = out_dir().join(format!("{}tensorflowlite_c.{}", lib_prefix, ext));
     } else {
         bazel_output_path_buf = PathBuf::from(tf_src_path)
-            .join("bazel-bin/tensorflow/lite/ios/TensorFlowLiteC_framework.zip");
+            .join("bazel-bin")
+            .join("tensorflow")
+            .join("lite")
+            .join("ios")
+            .join("TensorFlowLiteC_framework.zip");
         bazel_target = String::from("//tensorflow/lite/ios:TensorFlowLiteC_framework");
-        output_path_buf = out_dir().join("TensorFlowLiteC.framework");
+        lib_output_path_buf = out_dir().join("TensorFlowLiteC.framework");
     };
 
     let python_bin_path = env::var("PYTHON_BIN_PATH").expect("Cannot read PYTHON_BIN_PATH");
@@ -156,7 +229,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         }
     }
 
-    if os == "ios" {
+    if target_os == "ios" {
         bazel.args(&["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
     }
     if !bazel.status().expect("Cannot execute bazel").success() {
@@ -168,14 +241,17 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
             bazel_output_path_buf.display()
         )
     }
-    if os != "ios" {
-        if output_path_buf.exists() {
-            std::fs::remove_file(&output_path_buf).unwrap();
+    if target_os != "ios" {
+        copy_or_overwrite(&bazel_output_path_buf, &lib_output_path_buf);
+        if target_os == "windows" {
+            let mut bazel_output_winlib_path_buf = bazel_output_path_buf;
+            bazel_output_winlib_path_buf.set_extension("dll.if.lib");
+            let winlib_output_path_buf = out_dir().join("tensorflowlite_c.lib");
+            copy_or_overwrite(bazel_output_winlib_path_buf, winlib_output_path_buf);
         }
-        std::fs::copy(bazel_output_path_buf, &output_path_buf).expect("Cannot copy bazel output");
     } else {
-        if output_path_buf.exists() {
-            std::fs::remove_dir_all(&output_path_buf).unwrap();
+        if lib_output_path_buf.exists() {
+            std::fs::remove_dir_all(&lib_output_path_buf).unwrap();
         }
         let mut unzip = std::process::Command::new("unzip");
         unzip.args(&[
@@ -186,7 +262,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
         ]);
         unzip.status().expect("Cannot execute unzip");
     }
-    output_path_buf
+    lib_output_path_buf
 }
 
 fn out_dir() -> PathBuf {
@@ -200,14 +276,17 @@ fn prepare_for_docsrs() {
 
     let mut unzip = std::process::Command::new("unzip");
     let root = std::path::PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
-    unzip.arg(root.join("build-res/docsrs_res.zip"))
+    unzip
+        .arg(root.join("build-res/docsrs_res.zip"))
         .arg("-d")
         .arg(out_dir());
-    if !(unzip.status()
+    if !(unzip
+        .status()
         .unwrap_or_else(|_| panic!("Cannot execute unzip"))
         .success()
         && library_path.exists()
-        && bindings_path.exists()) {
+        && bindings_path.exists())
+    {
         panic!("Cannot extract docs.rs resources")
     }
 }
@@ -249,18 +328,12 @@ fn main() {
         check_and_set_envs();
         build_tensorflow_with_bazel(tf_src_path.to_str().unwrap(), config.as_str());
 
-        // The bindgen::Builder is the main entry point
-        // to bindgen, and lets you build up options for
-        // the resulting bindings.
-        let mut builder = bindgen::Builder::default()
-            // The input header we would like to generate
-            // bindings for.
-            .header(
-                tf_src_path
-                    .join("tensorflow/lite/c/c_api.h")
-                    .to_str()
-                    .unwrap(),
-            );
+        let mut builder = bindgen::Builder::default().header(
+            tf_src_path
+                .join("tensorflow/lite/c/c_api.h")
+                .to_str()
+                .unwrap(),
+        );
         if cfg!(feature = "xnnpack") {
             builder = builder.header(
                 tf_src_path
