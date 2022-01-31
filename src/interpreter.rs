@@ -89,7 +89,9 @@ impl Interpreter {
     /// ```
     /// use tflitec::model::Model;
     /// use tflitec::interpreter::Interpreter;
-    /// let model = Model::new("tests/add.bin")?;
+    /// use std::path::MAIN_SEPARATOR;
+    ///
+    /// let model = Model::new(&format!("tests{}add.bin", MAIN_SEPARATOR))?;
     /// let interpreter = Interpreter::new(&model, None)?;
     /// # Ok::<(), tflitec::Error>(())
     /// ```
@@ -149,7 +151,10 @@ impl Interpreter {
     ///
     /// ```
     /// use tflitec::interpreter::Interpreter;
-    /// let interpreter = Interpreter::with_model_path("tests/add.bin", None)?;
+    /// use std::path::MAIN_SEPARATOR;
+    ///
+    /// let path = format!("tests{}add.bin", MAIN_SEPARATOR);
+    /// let interpreter = Interpreter::with_model_path(&path, None)?;
     /// # Ok::<(), tflitec::Error>(())
     /// ```
     ///
@@ -406,6 +411,9 @@ mod tests {
     use crate::tensor;
     use crate::ErrorKind;
 
+    #[cfg(target_os = "windows")]
+    const MODEL_PATH: &'static str = "tests\\add.bin";
+    #[cfg(not(target_os = "windows"))]
     const MODEL_PATH: &'static str = "tests/add.bin";
 
     #[test]

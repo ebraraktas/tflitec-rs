@@ -4,7 +4,9 @@
 //!
 //! ```
 //! use tflitec::model::Model;
-//! let model = Model::new("tests/add.bin")?;
+//! use std::path::MAIN_SEPARATOR;
+//!
+//! let model = Model::new(&format!("tests{}add.bin", MAIN_SEPARATOR))?;
 //! # Ok::<(), tflitec::Error>(())
 //! ```
 use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};

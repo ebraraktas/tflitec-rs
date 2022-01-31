@@ -33,13 +33,15 @@ The example below shows running inference on a TensorFlow Lite model.
 ```rust
 use tflitec::interpreter::{Interpreter, Options};
 use tflitec::tensor;
+use std::path::MAIN_SEPARATOR;
 
 // Create interpreter options
 let mut options = Options::default();
 options.thread_count = 1;
 
 // Load example model which outputs y = 3 * x
-let interpreter = Interpreter::with_model_path("tests/add.bin", Some(options))?;
+let path = format!("tests{}add.bin", MAIN_SEPARATOR);
+let interpreter = Interpreter::with_model_path(&path, Some(options))?;
 // Resize input
 let input_shape = tensor::Shape::new(vec![10, 8, 8, 3]);
 interpreter.resize_input(0, input_shape)?;
