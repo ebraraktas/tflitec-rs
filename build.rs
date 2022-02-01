@@ -203,19 +203,17 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str) -> PathBuf {
     let mut bazel = std::process::Command::new("bazel");
     bazel.arg("build").arg("-c").arg("opt");
 
+    // Configure XNNPACK flags
+    // In r2.6, it is enabled for some OS such as Windows by default.
+    // To enable it by feature flag, we disable it by default on all platforms.
+    #[cfg(not(feature = "xnnpack"))]
+    bazel.arg("--define").arg("tflite_with_xnnpack=false");
     #[cfg(any(feature = "xnnpack_qu8", feature = "xnnpack_qs8"))]
-    {
-        bazel.arg("--define").arg("tflite_with_xnnpack=true");
-    }
-
+    bazel.arg("--define").arg("tflite_with_xnnpack=true");
     #[cfg(feature = "xnnpack_qs8")]
-    {
-        bazel.arg("--define").arg("xnn_enable_qs8=true");
-    }
+    bazel.arg("--define").arg("xnn_enable_qs8=true");
     #[cfg(feature = "xnnpack_qu8")]
-    {
-        bazel.arg("--define").arg("xnn_enable_qu8=true");
-    }
+    bazel.arg("--define").arg("xnn_enable_qu8=true");
 
     bazel
         .arg(format!("--config={}", config))
