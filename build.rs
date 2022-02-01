@@ -112,7 +112,8 @@ fn prepare_tensorflow_repo() -> PathBuf {
 }
 
 fn check_and_set_envs() {
-    let python_bin_path = get_python_bin_path().expect("Cannot find Python binary");
+    let python_bin_path =
+        get_python_bin_path().expect("Cannot find Python binary having required packages.");
     let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
     let default_envs = [
         ["PYTHON_BIN_PATH", python_bin_path.to_str().unwrap()],
