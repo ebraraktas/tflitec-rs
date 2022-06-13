@@ -5,7 +5,7 @@ use std::fmt::Debug;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-const TF_BRANCH: &str = "r2.6";
+const TAG: &str = "v2.9.1";
 const TF_GIT_URL: &str = "https://github.com/tensorflow/tensorflow.git";
 
 fn target_os() -> String {
@@ -88,7 +88,7 @@ fn prepare_tensorflow_repo() -> PathBuf {
         git.arg("clone")
             .args(&["--depth", "1"])
             .arg("--shallow-submodules")
-            .args(&["--branch", TF_BRANCH])
+            .args(&["--branch", TAG])
             .arg("--single-branch")
             .arg(TF_GIT_URL)
             .arg(tgt_result.to_str().unwrap());
