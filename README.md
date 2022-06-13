@@ -78,22 +78,22 @@ assert_eq!(expected, output_vector);
 
 # Compilation
 
-Current version of the crate builds `r2.6` branch of [tensorflow project].
+Current version of the crate builds `v2.9.1` branch of [tensorflow project].
 Compiled dynamic library or Framework will be available under `OUT_DIR`
 (see [cargo documentation]) of `tflitec`.
 You won't need this most of the time, because the crate output is linked appropriately.
 For all environments and targets you will need to have:
 
 * `git` CLI to fetch [TensorFlow]
-* [Bazel] to build [TensorFlow], supported versions: `[3.7.2, 3.99.0]`
+* [Bazel] to build [TensorFlow], it is recommended to use [bazelisk].
 * Python3 to build [TensorFlow]
 
 ## Optimized Build
 To build [TensorFlow] for your machine with native optimizations
 or pass other `--copts` to [Bazel], set environment variable below:
 ```sh
-BAZEL_COPTS="OPT1 OPT2 ..." # space seperated values will be passed as `--copt=OPTN` to bazel
-BAZEL_COPTS="-march=native" # for native optimized build
+TFLITEC_BAZEL_COPTS="OPT1 OPT2 ..." # space seperated values will be passed as `--copt=OPTN` to bazel
+TFLITEC_BAZEL_COPTS="-march=native" # for native optimized build
 ```
 ---
 Some OSs or targets may require additional steps.
@@ -126,7 +126,7 @@ Windows support is experimental. It is tested on Windows 10. You should follow i
 the `Setup for Windows` section on [TensorFlow Build Instructions for Windows]. In other words,
 you should install following before build:
 * Python 3.8.x 64 bit (the instructions suggest 3.6.x but this package is tested with 3.8.x)
-* Bazel, supported versions: `[3.7.2, 3.99.0]`
+* [Bazel]
 * [MSYS2]
 * Visual C++ Build Tools 2019
 
@@ -135,6 +135,7 @@ Do not forget to add relevant paths to `%PATH%` environment variable by followin
 
 [TensorFlow]: https://www.tensorflow.org/
 [Bazel]: https://bazel.build/
+[bazelisk]: https://github.com/bazelbuild/bazelisk
 [Bindgen]: https://github.com/rust-lang/rust-bindgen
 [tensorflow project]: https://github.com/tensorflow/tensorflow
 [TensorFlow Lite Swift API]: https://www.tensorflow.org/lite/guide/ios
