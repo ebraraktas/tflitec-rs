@@ -46,10 +46,10 @@ fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, des
             ..fs_extra::dir::CopyOptions::new()
         };
         fs_extra::dir::copy(src_path, dest_path, &options)
-            .unwrap_or_else(|e| panic!("Cannot directory copy from {:?} to {:?}. Error: {}", src, dest, e));
+            .unwrap_or_else(|e| panic!("Cannot copy directory from {:?} to {:?}. Error: {}", src, dest, e));
     } else {
         std::fs::copy(src_path, dest_path)
-            .unwrap_or_else(|_| panic!("Cannot file copy from {:?} to {:?}", src, dest));
+            .unwrap_or_else(|e| panic!("Cannot copy file from {:?} to {:?}. Error: {}", src, dest, e));
     }
 }
 
