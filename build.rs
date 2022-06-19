@@ -351,8 +351,23 @@ fn generate_bindings(tf_src_path: PathBuf) {
 
 fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_path: &PathBuf) {
     // Copy prebuilt library to given path
-    let prebuilt_tflitec_path = PathBuf::from(prebuilt_tflitec_path);
-    copy_or_overwrite(prebuilt_tflitec_path, lib_output_path);
+    {
+        let prebuilt_tflitec_path = PathBuf::from(prebuilt_tflitec_path);
+        // Copy .{so,dylib,dll,Framework} file
+        copy_or_overwrite(&prebuilt_tflitec_path, lib_output_path);
+
+        if target_os() == "windows" {
+            // Copy .lib file
+            let mut prebuilt_lib_path = prebuilt_tflitec_path;
+            prebuilt_lib_path.set_extension("lib");
+            if !prebuilt_lib_path.exists() {
+                panic!("A prebuilt windows .dll file must have .lib file under the same directory!")
+            }
+            let mut lib_file_path = lib_output_path.clone();
+            lib_file_path.set_extension("lib");
+            copy_or_overwrite(prebuilt_lib_path, lib_file_path);
+        }
+    }
 
     let header_dir = tf_src_path.join("tensorflow/lite/c");
     let header_download_hint_file = header_dir.join(".complete_header_download");
