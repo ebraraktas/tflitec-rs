@@ -406,24 +406,39 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
         }
     }
 
-    let header_dir = tf_src_path.join("tensorflow/lite/c");
-    let header_download_hint_file = header_dir.join(".complete_header_download");
-    if !header_download_hint_file.exists() {
-        // Download necessary header files from Github
-        std::fs::create_dir_all(header_dir).expect("Cannot generate header dir");
-        for path in [
+    download_headers(
+        tf_src_path,
+        &[
             "tensorflow/lite/c/c_api.h",
             "tensorflow/lite/c/c_api_types.h",
-        ] {
-            let url = format!(
-                "https://raw.githubusercontent.com/tensorflow/tensorflow/{}/{}",
-                TAG, path
-            );
-            download_file(&url, &tf_src_path.join(path));
+        ],
+    );
+    if cfg!(feature = "xnnpack") {
+        download_headers(
+            tf_src_path,
+            &[
+                "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h",
+                "tensorflow/lite/c/common.h",
+            ],
+        );
+    }
+}
+
+fn download_headers(tf_src_path: &Path, file_paths: &[&str]) {
+    // Download header files from Github
+    for file_path in file_paths {
+        let download_path = tf_src_path.join(file_path);
+        if download_path.exists() {
+            continue;
         }
-        // Create hint file to skip download unnecessarily
-        std::fs::File::create(header_download_hint_file)
-            .expect("Cannot create header download hint file");
+        if let Some(p) = download_path.parent() {
+            std::fs::create_dir_all(p).expect("Cannot generate header dir");
+        }
+        let url = format!(
+            "https://raw.githubusercontent.com/tensorflow/tensorflow/{}/{}",
+            TAG, file_path
+        );
+        download_file(&url, download_path.as_path());
     }
 }
 
