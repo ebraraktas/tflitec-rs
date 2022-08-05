@@ -76,12 +76,31 @@ assert_eq!(expected, output_vector);
 # Ok::<(), tflitec::Error>(())
 ```
 
+# Prebuilt Library Support
+
+As described in the [compilation section](#compilation), `libtensorflowlite_c` is built during compilation and
+this step may take a few minutes. To allow reusing prebuilt library, one can set `TFLITEC_PREBUILT_PATH` or 
+`TFLITEC_PREBUILT_PATH_<NORMALIZED_TARGET>` environment variables (the latter has precedence).
+`NORMALIZED_TARGET` is the target triple which is [converted to uppercase and underscores][triple_normalization], 
+as in the cargo configuration environment variables. Below you can find example values for different `TARGET`s:
+
+* `TFLITEC_PREBUILT_PATH_AARCH64_APPLE_IOS=/path/to/TensorFlowLiteC.framework`
+* `TFLITEC_PREBUILT_PATH_ARMV7_LINUX_ANDROIDEABI=/path/to/libtensorflowlite_c.so`
+* `TFLITEC_PREBUILT_PATH_X86_64_APPLE_DARWIN=/path/to/libtensorflowlite_c.dylib`
+* `TFLITEC_PREBUILT_PATH_X86_64_PC_WINDOWS_MSVC=/path/to/tensorflowlite_c.dll`. **Note that**, the prebuilt `.dll` 
+file must have the corresponding `.lib` file under the same directory.
+
+You can find these files under the [`OUT_DIR`][cargo documentation] after you compile the library for the first time, 
+then copy them to a persistent path and set environment variable.
+
 # Compilation
 
-Current version of the crate builds `v2.9.1` branch of [tensorflow project].
+Current version of the crate builds tag `v2.9.1` of the [tensorflow project].
 Compiled dynamic library or Framework will be available under `OUT_DIR`
 (see [cargo documentation]) of `tflitec`.
 You won't need this most of the time, because the crate output is linked appropriately.
+In addition, it may be better to read [prebuilt library support](#prebuilt-library-support) section 
+to make your builds faster.
 For all environments and targets you will need to have:
 
 * `git` CLI to fetch [TensorFlow]
@@ -118,7 +137,8 @@ BINDGEN_EXTRA_CLANG_ARGS="\
 -I${ANDROID_NDK_HOME}/sysroot/usr/include/ \
 -I${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${HOST_TAG}/sysroot/usr/include/${TARGET_TRIPLE}/"
 ```
-* (Recommended) [cargo-ndk] simplifies `cargo build` process.
+* (Recommended) [cargo-ndk] simplifies `cargo build` process. Recent version of the tool has `--bindgen` flag
+which sets `BINDGEN_EXTRA_CLANG_ARGS` variable appropriately. Hence, you can skip the step above.
 
 ## Windows
 
@@ -147,3 +167,4 @@ Do not forget to add relevant paths to `%PATH%` environment variable by followin
 [cargo-ndk]: https://github.com/bbqsrc/cargo-ndk
 [TensorFlow Build Instructions for Windows]: https://www.tensorflow.org/install/source_windows
 [MSYS2]: https://www.msys2.org/
+[triple_normalization]: https://doc.rust-lang.org/cargo/reference/config.html#environment-variables
