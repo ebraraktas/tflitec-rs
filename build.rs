@@ -45,12 +45,38 @@ fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, des
             copy_inside: true,
             ..fs_extra::dir::CopyOptions::new()
         };
-        fs_extra::dir::copy(src_path, dest_path, &options)
-            .unwrap_or_else(|e| panic!("Cannot copy directory from {:?} to {:?}. Error: {}", src, dest, e));
+        fs_extra::dir::copy(src_path, dest_path, &options).unwrap_or_else(|e| {
+            panic!(
+                "Cannot copy directory from {:?} to {:?}. Error: {}",
+                src, dest, e
+            )
+        });
     } else {
-        std::fs::copy(src_path, dest_path)
-            .unwrap_or_else(|e| panic!("Cannot copy file from {:?} to {:?}. Error: {}", src, dest, e));
+        std::fs::copy(src_path, dest_path).unwrap_or_else(|e| {
+            panic!(
+                "Cannot copy file from {:?} to {:?}. Error: {}",
+                src, dest, e
+            )
+        });
     }
+}
+
+/// Looks for the env var `var_${NORMALIZED_TARGET}`, and falls back to just `var` when
+/// it is not found.
+///
+/// `NORMALIZED_TARGET` is the target triple which is converted to uppercase and underscores.
+fn get_target_dependent_env_var(var: &str) -> Option<String> {
+    if let Ok(target) = env::var("TARGET") {
+        let normalized_target = target.to_uppercase().replace('-', "_");
+        if let Ok(v) = env::var(&format!("{}_{}", var, normalized_target)) {
+            println!(
+                "cargo:warning=Using target env {}_{}",
+                var, normalized_target
+            );
+            return Some(v);
+        }
+    }
+    env::var(var).ok()
 }
 
 fn test_python_bin(python_bin_path: &str) -> bool {
@@ -361,7 +387,7 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
             let mut prebuilt_lib_path = prebuilt_tflitec_path;
             prebuilt_lib_path.set_extension("lib");
             if !prebuilt_lib_path.exists() {
-                panic!("A prebuilt windows .dll file must have .lib file under the same directory!")
+                panic!("A prebuilt windows .dll file must have the corresponding .lib file under the same directory!")
             }
             let mut lib_file_path = lib_output_path.clone();
             lib_file_path.set_extension("lib");
@@ -432,7 +458,7 @@ fn main() {
         let tf_src_path = out_path.join(format!("tensorflow_{}", TAG));
         let lib_output_path = lib_output_path();
 
-        if let Ok(prebuilt_tflitec_path) = env::var(PREBUILT_PATH_ENV_VAR) {
+        if let Some(prebuilt_tflitec_path) = get_target_dependent_env_var(PREBUILT_PATH_ENV_VAR) {
             install_prebuilt(&prebuilt_tflitec_path, &tf_src_path, &lib_output_path);
         } else {
             // Build from source
