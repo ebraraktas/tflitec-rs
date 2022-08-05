@@ -61,18 +61,19 @@ fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, des
     }
 }
 
+fn normalized_target() -> Option<String> {
+    env::var("TARGET")
+        .ok()
+        .map(|t| t.to_uppercase().replace('-', "_"))
+}
+
 /// Looks for the env var `var_${NORMALIZED_TARGET}`, and falls back to just `var` when
 /// it is not found.
 ///
 /// `NORMALIZED_TARGET` is the target triple which is converted to uppercase and underscores.
 fn get_target_dependent_env_var(var: &str) -> Option<String> {
-    if let Ok(target) = env::var("TARGET") {
-        let normalized_target = target.to_uppercase().replace('-', "_");
-        if let Ok(v) = env::var(&format!("{}_{}", var, normalized_target)) {
-            println!(
-                "cargo:warning=Using target env {}_{}",
-                var, normalized_target
-            );
+    if let Some(target) = normalized_target() {
+        if let Ok(v) = env::var(&format!("{}_{}", var, target)) {
             return Some(v);
         }
     }
@@ -439,6 +440,12 @@ fn download_file(url: &str, path: &Path) {
 fn main() {
     println!("cargo:rerun-if-env-changed={}", BAZEL_COPTS_ENV_VAR);
     println!("cargo:rerun-if-env-changed={}", PREBUILT_PATH_ENV_VAR);
+    if let Some(target) = normalized_target() {
+        println!(
+            "cargo:rerun-if-env-changed={}_{}",
+            PREBUILT_PATH_ENV_VAR, target
+        );
+    }
 
     let out_path = out_dir();
     let os = target_os();
