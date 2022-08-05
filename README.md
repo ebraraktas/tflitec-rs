@@ -93,6 +93,11 @@ file must have the corresponding `.lib` file under the same directory.
 You can find these files under the [`OUT_DIR`][cargo documentation] after you compile the library for the first time, 
 then copy them to a persistent path and set environment variable.
 
+## XNNPACK support
+
+You can activate `xnnpack` features with a prebuilt library, too. 
+However, you must have built that library with XNNPACK, otherwise you will see a linking error.
+
 # Compilation
 
 Current version of the crate builds tag `v2.9.1` of the [tensorflow project].
