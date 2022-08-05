@@ -257,6 +257,14 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
         panic!("Cannot configure tensorflow")
     }
     let mut bazel = std::process::Command::new("bazel");
+    {
+        // Set bazel outputBase under OUT_DIR
+        let bazel_output_base_path = out_dir().join(format!("tensorflow_{}_output_base", TAG));
+        bazel.arg(format!(
+            "--output_base={}",
+            bazel_output_base_path.to_str().unwrap()
+        ));
+    }
     bazel.arg("build").arg("-c").arg("opt");
 
     // Configure XNNPACK flags
