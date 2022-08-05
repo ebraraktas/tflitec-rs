@@ -82,7 +82,7 @@ fn get_target_dependent_env_var(var: &str) -> Option<String> {
 fn test_python_bin(python_bin_path: &str) -> bool {
     println!("Testing Python at {}", python_bin_path);
     let success = std::process::Command::new(python_bin_path)
-        .args(&["-c", "import numpy"])
+        .args(&["-c", "import numpy, importlib.util"])
         .status()
         .map(|s| s.success())
         .unwrap_or_default();
@@ -109,6 +109,7 @@ fn get_python_bin_path() -> Option<PathBuf> {
                 if test_python_bin(path) {
                     return Some(PathBuf::from(path));
                 }
+                println!("cargo:warning={:?} failed import test", path)
             }
         }
         if let Ok(x) = std::process::Command::new(bin).arg("python").output() {
@@ -116,6 +117,7 @@ fn get_python_bin_path() -> Option<PathBuf> {
                 if test_python_bin(path) {
                     return Some(PathBuf::from(path));
                 }
+                println!("cargo:warning={:?} failed import test", path)
             }
             None
         } else {
@@ -467,8 +469,8 @@ fn main() {
             } else {
                 os
             };
-            prepare_tensorflow_source(tf_src_path.as_path());
             check_and_set_envs();
+            prepare_tensorflow_source(tf_src_path.as_path());
             build_tensorflow_with_bazel(
                 tf_src_path.to_str().unwrap(),
                 config.as_str(),
