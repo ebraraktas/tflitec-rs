@@ -449,7 +449,10 @@ fn download_file(url: &str, path: &Path) {
     easy.url(url).unwrap();
     easy.write_function(move |data| Ok(writer.write(data).unwrap()))
         .unwrap();
-    easy.perform().unwrap();
+    easy.perform().unwrap_or_else(|e| {
+        std::fs::remove_file(path).unwrap(); // Delete corrupted or empty file
+        panic!("Error occurred while downloading from {}: {:?}", url, e);
+    });
 }
 
 fn main() {
