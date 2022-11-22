@@ -497,16 +497,16 @@ fn main() {
             install_prebuilt(&prebuilt_tflitec_path, &tf_src_path, &lib_output_path);
         } else {
             // Build from source
-            let config = if os == "android" || os == "ios" {
+            check_and_set_envs();
+            prepare_tensorflow_source(tf_src_path.as_path());
+            let config = if os == "android" || os == "ios" || (os == "macos" && arch == "arm64") {
                 format!("{}_{}", os, arch)
             } else {
                 os
             };
-            check_and_set_envs();
-            prepare_tensorflow_source(tf_src_path.as_path());
             build_tensorflow_with_bazel(
                 tf_src_path.to_str().unwrap(),
-                config.as_str(),
+                &config,
                 lib_output_path.as_path(),
             );
         }
