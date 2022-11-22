@@ -33,23 +33,24 @@ The example below shows running inference on a TensorFlow Lite model.
 ```rust
 use tflitec::interpreter::{Interpreter, Options};
 use tflitec::tensor;
-use std::path::MAIN_SEPARATOR;
+use tflitec::model::Model;
 
 // Create interpreter options
 let mut options = Options::default();
 options.thread_count = 1;
 
 // Load example model which outputs y = 3 * x
-let path = format!("tests{}add.bin", MAIN_SEPARATOR);
-let interpreter = Interpreter::with_model_path(&path, Some(options))?;
+let model = Model::new("tests/add.bin")?;
+// Create interpreter
+let interpreter = Interpreter::new(&model, Some(options))?;
 // Resize input
 let input_shape = tensor::Shape::new(vec![10, 8, 8, 3]);
+let input_element_count = input_shape.dimensions().iter().copied().reduce(std::ops::Mul::mul).unwrap();
 interpreter.resize_input(0, input_shape)?;
 // Allocate tensors if you just created Interpreter or resized its inputs
 interpreter.allocate_tensors()?;
 
 // Create dummy input
-let input_element_count = 10 * 8 * 8 * 3;
 let data = (0..input_element_count).map(|x| x as f32).collect::<Vec<f32>>();
 
 let input_tensor = interpreter.input(0)?;
@@ -118,6 +119,8 @@ or pass other `--copts` to [Bazel], set environment variable below:
 ```sh
 TFLITEC_BAZEL_COPTS="OPT1 OPT2 ..." # space seperated values will be passed as `--copt=OPTN` to bazel
 TFLITEC_BAZEL_COPTS="-march=native" # for native optimized build
+# You can set target specific opts by appending normalized target to variable name
+TFLITEC_BAZEL_COPTS_X86_64_APPLE_DARWIN="-march=native"
 ```
 ---
 Some OSs or targets may require additional steps.

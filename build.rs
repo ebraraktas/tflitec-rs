@@ -35,9 +35,9 @@ fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, des
     let dest_path: &Path = dest.as_ref();
     if dest_path.exists() {
         if dest_path.is_file() {
-            std::fs::remove_file(&dest_path).expect("Cannot remove file");
+            std::fs::remove_file(dest_path).expect("Cannot remove file");
         } else {
-            std::fs::remove_dir_all(&dest_path).expect("Cannot remove directory");
+            std::fs::remove_dir_all(dest_path).expect("Cannot remove directory");
         }
     }
     if src_path.is_dir() {
@@ -83,7 +83,7 @@ fn get_target_dependent_env_var(var: &str) -> Option<String> {
 fn test_python_bin(python_bin_path: &str) -> bool {
     println!("Testing Python at {}", python_bin_path);
     let success = std::process::Command::new(python_bin_path)
-        .args(&["-c", "import numpy, importlib.util"])
+        .args(["-c", "import numpy, importlib.util"])
         .status()
         .map(|s| s.success())
         .unwrap_or_default();
@@ -135,9 +135,9 @@ fn prepare_tensorflow_source(tf_src_path: &Path) {
         }
         let mut git = std::process::Command::new("git");
         git.arg("clone")
-            .args(&["--depth", "1"])
+            .args(["--depth", "1"])
             .arg("--shallow-submodules")
-            .args(&["--branch", TAG])
+            .args(["--branch", TAG])
             .arg("--single-branch")
             .arg(TF_GIT_URL)
             .arg(tf_src_path.to_str().unwrap());
@@ -285,7 +285,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
         .arg(bazel_target)
         .current_dir(tf_src_path);
 
-    if let Ok(copts) = env::var(BAZEL_COPTS_ENV_VAR) {
+    if let Some(copts) = get_target_dependent_env_var(BAZEL_COPTS_ENV_VAR) {
         let copts = copts.split_ascii_whitespace();
         for opt in copts {
             bazel.arg(format!("--copt={}", opt));
@@ -293,7 +293,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
     }
 
     if target_os == "ios" {
-        bazel.args(&["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
+        bazel.args(["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
     }
     println!("Bazel Build Command: {:?}", bazel);
     if !bazel.status().expect("Cannot execute bazel").success() {
@@ -306,7 +306,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
         )
     }
     if target_os != "ios" {
-        copy_or_overwrite(&bazel_output_path_buf, &lib_output_path);
+        copy_or_overwrite(&bazel_output_path_buf, lib_output_path);
         if target_os == "windows" {
             let mut bazel_output_winlib_path_buf = bazel_output_path_buf;
             bazel_output_winlib_path_buf.set_extension("dll.if.lib");
@@ -315,10 +315,10 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
         }
     } else {
         if lib_output_path.exists() {
-            std::fs::remove_dir_all(&lib_output_path).unwrap();
+            std::fs::remove_dir_all(lib_output_path).unwrap();
         }
         let mut unzip = std::process::Command::new("unzip");
-        unzip.args(&[
+        unzip.args([
             "-q",
             bazel_output_path_buf.to_str().unwrap(),
             "-d",
@@ -461,6 +461,10 @@ fn main() {
     if let Some(target) = normalized_target() {
         println!(
             "cargo:rerun-if-env-changed={}_{}",
+            BAZEL_COPTS_ENV_VAR, target
+        );
+        println!(
+            "cargo:rerun-if-env-changed={}_{}",
             PREBUILT_PATH_ENV_VAR, target
         );
     }
@@ -497,16 +501,16 @@ fn main() {
             install_prebuilt(&prebuilt_tflitec_path, &tf_src_path, &lib_output_path);
         } else {
             // Build from source
-            let config = if os == "android" || os == "ios" {
+            check_and_set_envs();
+            prepare_tensorflow_source(tf_src_path.as_path());
+            let config = if os == "android" || os == "ios" || (os == "macos" && arch == "arm64") {
                 format!("{}_{}", os, arch)
             } else {
                 os
             };
-            check_and_set_envs();
-            prepare_tensorflow_source(tf_src_path.as_path());
             build_tensorflow_with_bazel(
                 tf_src_path.to_str().unwrap(),
-                config.as_str(),
+                &config,
                 lib_output_path.as_path(),
             );
         }
