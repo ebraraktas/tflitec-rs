@@ -166,6 +166,38 @@ impl Interpreter {
         let model = Model::new(model_path)?;
         Interpreter::new(&model, options)
     }
+    /// Creates an [`Interpreter`] with model bytes.
+    ///
+    /// # Arguments
+    ///
+    /// * `model_bytes`: Path to TensorFlow Lite model
+    /// * `options`: Interpreter [`Options`]
+    ///
+    /// returns: Result<Interpreter, Error>
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// use tflitec::interpreter::Interpreter;
+    /// use std::path::MAIN_SEPARATOR;
+    ///
+    /// let path = format!("tests{}add.bin", MAIN_SEPARATOR);
+    /// let interpreter = Interpreter::with_model_path(&path, None)?;
+    /// # Ok::<(), tflitec::Error>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns error if TensorFlow Lite C fails internally while reading [`Model`] or creating
+    /// [`Interpreter`].
+    pub fn with_model_bytes(
+        model_bytes: &[u8],
+        len: u64,
+        options: Option<Options>,
+    ) -> Result<Interpreter> {
+        let model = Model::new_from_bytes(model_bytes, len)?;
+        Interpreter::new(&model, options)
+    }
 
     /// Returns the total number of input [`Tensor`]s associated with the model.
     pub fn input_tensor_count(&self) -> usize {

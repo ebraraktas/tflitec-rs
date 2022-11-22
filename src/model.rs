@@ -9,9 +9,11 @@
 //! let model = Model::new(&format!("tests{}add.bin", MAIN_SEPARATOR))?;
 //! # Ok::<(), tflitec::Error>(())
 //! ```
-use crate::bindings::{TfLiteModel, TfLiteModelCreateFromFile, TfLiteModelDelete};
+use crate::bindings::{
+    TfLiteModel, TfLiteModelCreate, TfLiteModelCreateFromFile, TfLiteModelDelete,
+};
 use crate::{Error, ErrorKind, Result};
-use std::ffi::CString;
+use std::ffi::{c_void, CString};
 use std::fmt::{Debug, Formatter};
 
 /// A TensorFlow Lite model used by the [`Interpreter`][crate::interpreter::Interpreter] to perform inference.
@@ -44,6 +46,23 @@ impl Model {
             let path = CString::new(filepath).unwrap();
             TfLiteModelCreateFromFile(path.as_ptr())
         };
+        if model_ptr.is_null() {
+            Err(Error::new(ErrorKind::FailedToLoadModel))
+        } else {
+            Ok(Model { model_ptr })
+        }
+    }
+    /// Creates a new instance with the byte buffer.
+    ///
+    /// # Arguments
+    ///
+    /// * `filepath`: The local file path to a TensorFlow Lite model.
+    ///
+    /// # Errors
+    ///
+    /// Returns error if TensorFlow Lite C fails to read model from file.
+    pub fn new_from_bytes(bytes: &[u8], len: u64) -> Result<Model> {
+        let model_ptr = unsafe { TfLiteModelCreate(bytes.as_ptr() as *mut c_void, len) };
         if model_ptr.is_null() {
             Err(Error::new(ErrorKind::FailedToLoadModel))
         } else {
