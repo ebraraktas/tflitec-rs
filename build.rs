@@ -285,7 +285,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
         .arg(bazel_target)
         .current_dir(tf_src_path);
 
-    if let Ok(copts) = env::var(BAZEL_COPTS_ENV_VAR) {
+    if let Some(copts) = get_target_dependent_env_var(BAZEL_COPTS_ENV_VAR) {
         let copts = copts.split_ascii_whitespace();
         for opt in copts {
             bazel.arg(format!("--copt={}", opt));
@@ -459,6 +459,10 @@ fn main() {
     println!("cargo:rerun-if-env-changed={}", BAZEL_COPTS_ENV_VAR);
     println!("cargo:rerun-if-env-changed={}", PREBUILT_PATH_ENV_VAR);
     if let Some(target) = normalized_target() {
+        println!(
+            "cargo:rerun-if-env-changed={}_{}",
+            BAZEL_COPTS_ENV_VAR, target
+        );
         println!(
             "cargo:rerun-if-env-changed={}_{}",
             PREBUILT_PATH_ENV_VAR, target
