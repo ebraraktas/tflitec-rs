@@ -10,6 +10,7 @@ const TAG: &str = "v2.9.1";
 const TF_GIT_URL: &str = "https://github.com/tensorflow/tensorflow.git";
 const BAZEL_COPTS_ENV_VAR: &str = "TFLITEC_BAZEL_COPTS";
 const PREBUILT_PATH_ENV_VAR: &str = "TFLITEC_PREBUILT_PATH";
+const HEADER_DIR_ENV_VAR: &str = "TFLITEC_HEADER_DIR";
 
 fn target_os() -> String {
     env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS")
@@ -406,7 +407,7 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
         }
     }
 
-    download_headers(
+    copy_or_download_headers(
         tf_src_path,
         &[
             "tensorflow/lite/c/c_api.h",
@@ -414,13 +415,35 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
         ],
     );
     if cfg!(feature = "xnnpack") {
-        download_headers(
+        copy_or_download_headers(
             tf_src_path,
             &[
                 "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h",
                 "tensorflow/lite/c/common.h",
             ],
         );
+    }
+}
+
+fn copy_or_download_headers(tf_src_path: &Path, file_paths: &[&str]) {
+    if let Some(header_src_dir) = get_target_dependent_env_var(HEADER_DIR_ENV_VAR) {
+        copy_headers(Path::new(&header_src_dir), tf_src_path, file_paths)
+    } else {
+        download_headers(tf_src_path, file_paths)
+    }
+}
+
+fn copy_headers(header_src_dir: &Path, tf_src_path: &Path, file_paths: &[&str]) {
+    // Download header files from Github
+    for file_path in file_paths {
+        let dst_path = tf_src_path.join(file_path);
+        if dst_path.exists() {
+            continue;
+        }
+        if let Some(p) = dst_path.parent() {
+            std::fs::create_dir_all(p).expect("Cannot generate header dir");
+        }
+        copy_or_overwrite(header_src_dir.join(file_path), dst_path);
     }
 }
 
@@ -456,17 +479,18 @@ fn download_file(url: &str, path: &Path) {
 }
 
 fn main() {
-    println!("cargo:rerun-if-env-changed={}", BAZEL_COPTS_ENV_VAR);
-    println!("cargo:rerun-if-env-changed={}", PREBUILT_PATH_ENV_VAR);
-    if let Some(target) = normalized_target() {
-        println!(
-            "cargo:rerun-if-env-changed={}_{}",
-            BAZEL_COPTS_ENV_VAR, target
-        );
-        println!(
-            "cargo:rerun-if-env-changed={}_{}",
-            PREBUILT_PATH_ENV_VAR, target
-        );
+    {
+        let env_vars = [
+            BAZEL_COPTS_ENV_VAR,
+            PREBUILT_PATH_ENV_VAR,
+            HEADER_DIR_ENV_VAR,
+        ];
+        for env_var in env_vars {
+            println!("cargo:rerun-if-env-changed={env_var}");
+            if let Some(target) = normalized_target() {
+                println!("cargo:rerun-if-env-changed={env_var}_{target}");
+            }
+        }
     }
 
     let out_path = out_dir();

@@ -106,7 +106,29 @@ then copy them to a persistent path and set environment variable.
 You can activate `xnnpack` features with a prebuilt library, too. 
 However, you must have built that library with XNNPACK, otherwise you will see a linking error.
 
-## Linking
+## Local Header Directory Support
+
+Some tensorflow header files are downloaded from GitHub during compilation with or without prebuild binary. 
+However, some users may have difficulty to access GitHub. Hence, one can pass header directory with 
+`TFLITEC_HEADER_DIR` or `TFLITEC_HEADER_DIR_<NORMALIZED_TARGET>` environment variables 
+(the latter has precedence). See the example command below:
+
+```shell
+TFLITEC_HEADER_DIR=/path/to/tensorflow_v2.9.1_headers cargo build --release
+# Structure of /path/to/tensorflow_v2.9.1_headers is given below:
+# tensorflow_v2.9.1_headers
+# └── tensorflow
+#     └── lite
+#         ├── c
+#         │ ├── c_api.h            # Required
+#         │ ├── c_api_types.h      # Required
+#         │ └── common.h           # Required if xnnpack enabled
+#         └── delegates
+#             └── xnnpack
+#                 └── xnnpack_delegate.h  # Required if xnnpack enabled
+```
+
+# Linking
 
 This library builds `libtensorflowlite_c` **dynamic library** and must be linked to it. This is not an issue
 if you build and run a binary target with `cargo run`. However, if you run your binary directly, you **must**
