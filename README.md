@@ -1,3 +1,6 @@
+[![Crates.io](https://img.shields.io/crates/v/tflitec.svg)](https://crates.io/crates/tflitec)
+[![Docs.rs](https://img.shields.io/docsrs/tflitec)](https://docs.rs/tflitec/latest/tflitec/)
+
 This crate is a safe Rust wrapper of [TensorFlow Lite C API].
 Its API is very similar to that of [TensorFlow Lite Swift API].
 
@@ -41,6 +44,10 @@ options.thread_count = 1;
 
 // Load example model which outputs y = 3 * x
 let model = Model::new("tests/add.bin")?;
+// Or initialize with model bytes if it is not available as a file
+// let model_data = std::fs::read("tests/add.bin")?;
+// let model = Model::from_bytes(&model_data)?;
+
 // Create interpreter
 let interpreter = Interpreter::new(&model, Some(options))?;
 // Resize input
@@ -74,7 +81,7 @@ let output_vector = output_tensor.data::<f32>().to_vec();
 let expected: Vec<f32> = data.iter().map(|e| e * 3.0).collect();
 assert_eq!(expected, output_vector);
 # // The line below is needed for doctest, please ignore it
-# Ok::<(), tflitec::Error>(())
+# Ok::<(), Box<dyn std::error::Error>>(())
 ```
 
 # Prebuilt Library Support
@@ -98,6 +105,17 @@ then copy them to a persistent path and set environment variable.
 
 You can activate `xnnpack` features with a prebuilt library, too. 
 However, you must have built that library with XNNPACK, otherwise you will see a linking error.
+
+## Linking
+
+This library builds `libtensorflowlite_c` **dynamic library** and must be linked to it. This is not an issue
+if you build and run a binary target with `cargo run`. However, if you run your binary directly, you **must**
+have `libtensorflowlite_c` dynamic library in your library search path. You can either copy built library under
+`target/{release,debug}/build/tflitec-*/out` to one of the system library search paths 
+(such as `/usr/lib` or `/usr/local/lib`) or add that directory (`out`) to search path.
+
+Similarly, if you distribute a prebuilt library depending on this, you must distribute `libtensorflowlite_c`, too.
+Or, document this warning in your library to instruct your users.
 
 # Compilation
 
