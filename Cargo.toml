@@ -16,9 +16,9 @@ name = "tflitec"
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.59.1"
-fs_extra = "1.2.0"
-curl = "0.4.43"
+bindgen = "0.64"
+fs_extra = "1.3"
+curl = "0.4"
 
 [features]
 xnnpack = []

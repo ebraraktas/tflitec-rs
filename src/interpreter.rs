@@ -305,18 +305,15 @@ impl<'a> Interpreter<'a> {
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
-            let byte_count = TfLiteTensorByteSize(tensor_ptr) as usize;
+            let byte_count = TfLiteTensorByteSize(tensor_ptr);
             if data.len() != byte_count {
                 return Err(Error::new(ErrorKind::InvalidTensorDataCount(
                     data.len(),
                     byte_count,
                 )));
             }
-            let status = TfLiteTensorCopyFromBuffer(
-                tensor_ptr,
-                data.as_ptr() as *const c_void,
-                data.len() as size_t,
-            );
+            let status =
+                TfLiteTensorCopyFromBuffer(tensor_ptr, data.as_ptr() as *const c_void, data.len());
             if status != TfLiteStatus_kTfLiteOk {
                 Err(Error::new(ErrorKind::FailedToCopyDataToInputTensor))
             } else {

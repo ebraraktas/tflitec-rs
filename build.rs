@@ -73,7 +73,7 @@ fn normalized_target() -> Option<String> {
 /// `NORMALIZED_TARGET` is the target triple which is converted to uppercase and underscores.
 fn get_target_dependent_env_var(var: &str) -> Option<String> {
     if let Some(target) = normalized_target() {
-        if let Ok(v) = env::var(&format!("{}_{}", var, target)) {
+        if let Ok(v) = env::var(format!("{var}_{target}")) {
             return Some(v);
         }
     }

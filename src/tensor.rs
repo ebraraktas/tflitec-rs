@@ -170,7 +170,7 @@ impl<'a> Tensor<'a> {
             }
             let name = CStr::from_ptr(name_ptr).to_str().unwrap().to_owned();
 
-            let data_length = TfLiteTensorByteSize(tensor_ptr) as usize;
+            let data_length = TfLiteTensorByteSize(tensor_ptr);
             let data_type = DataType::new(TfLiteTensorType(tensor_ptr))
                 .ok_or_else(|| Error::new(ErrorKind::InvalidTensorDataType))?;
 
@@ -255,7 +255,7 @@ impl<'a> Tensor<'a> {
             TfLiteTensorCopyFromBuffer(
                 self.tensor_ptr,
                 data.as_ptr() as *const c_void,
-                input_byte_count as size_t,
+                input_byte_count,
             )
         };
         if status != TfLiteStatus_kTfLiteOk {
