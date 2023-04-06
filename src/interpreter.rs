@@ -55,7 +55,7 @@ impl Default for Options {
 /// A TensorFlow Lite interpreter that performs inference from a given model.
 ///
 /// - Note: Interpreter instances are *not* thread-safe.
-pub struct Interpreter {
+pub struct Interpreter<'a> {
     /// The configuration options for the [`Interpreter`].
     options: Option<Options>,
 
@@ -65,18 +65,24 @@ pub struct Interpreter {
     /// The underlying [`TfLiteDelegate`] C pointer for XNNPACK delegate.
     #[cfg(feature = "xnnpack")]
     xnnpack_delegate_ptr: Option<*mut TfLiteDelegate>,
+
+    /// The underlying `Model` to limit lifetime of the interpreter.
+    /// See this issue for details:
+    /// <https://github.com/tensorflow/tensorflow/issues/53628>
+    #[allow(dead_code)]
+    model: &'a Model<'a>,
 }
 
-impl Debug for Interpreter {
+impl Debug for Interpreter<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Interpreter")
             .field("options", &self.options)
             .finish()
     }
 }
-unsafe impl Send for Interpreter {}
+unsafe impl Send for Interpreter<'_> {}
 
-impl Interpreter {
+impl<'a> Interpreter<'a> {
     /// Creates new [`Interpreter`]
     ///
     /// # Arguments
@@ -89,9 +95,7 @@ impl Interpreter {
     /// ```
     /// use tflitec::model::Model;
     /// use tflitec::interpreter::Interpreter;
-    /// use std::path::MAIN_SEPARATOR;
-    ///
-    /// let model = Model::new(&format!("tests{}add.bin", MAIN_SEPARATOR))?;
+    /// let model = Model::new("tests/add.bin")?;
     /// let interpreter = Interpreter::new(&model, None)?;
     /// # Ok::<(), tflitec::Error>(())
     /// ```
@@ -99,7 +103,7 @@ impl Interpreter {
     /// # Errors
     ///
     /// Returns error if TensorFlow Lite C fails internally.
-    pub fn new(model: &Model, options: Option<Options>) -> Result<Interpreter> {
+    pub fn new(model: &'a Model<'a>, options: Option<Options>) -> Result<Interpreter<'a>> {
         unsafe {
             let options_ptr = TfLiteInterpreterOptionsCreate();
             if options_ptr.is_null() {
@@ -133,38 +137,10 @@ impl Interpreter {
                     interpreter_ptr,
                     #[cfg(feature = "xnnpack")]
                     xnnpack_delegate_ptr,
+                    model,
                 })
             }
         }
-    }
-
-    /// Creates an [`Interpreter`] with model path.
-    ///
-    /// # Arguments
-    ///
-    /// * `model_path`: Path to TensorFlow Lite model
-    /// * `options`: Interpreter [`Options`]
-    ///
-    /// returns: Result<Interpreter, Error>
-    ///
-    /// # Examples
-    ///
-    /// ```
-    /// use tflitec::interpreter::Interpreter;
-    /// use std::path::MAIN_SEPARATOR;
-    ///
-    /// let path = format!("tests{}add.bin", MAIN_SEPARATOR);
-    /// let interpreter = Interpreter::with_model_path(&path, None)?;
-    /// # Ok::<(), tflitec::Error>(())
-    /// ```
-    ///
-    /// # Errors
-    ///
-    /// Returns error if TensorFlow Lite C fails internally while reading [`Model`] or creating
-    /// [`Interpreter`].
-    pub fn with_model_path(model_path: &str, options: Option<Options>) -> Result<Interpreter> {
-        let model = Model::new(model_path)?;
-        Interpreter::new(&model, options)
     }
 
     /// Returns the total number of input [`Tensor`]s associated with the model.
@@ -390,7 +366,7 @@ impl Interpreter {
     }
 }
 
-impl Drop for Interpreter {
+impl Drop for Interpreter<'_> {
     fn drop(&mut self) {
         unsafe {
             TfLiteInterpreterDelete(self.interpreter_ptr);
@@ -408,29 +384,29 @@ impl Drop for Interpreter {
 #[cfg(test)]
 mod tests {
     use crate::interpreter::Interpreter;
+    use crate::model::Model;
     use crate::tensor;
     use crate::ErrorKind;
 
     #[cfg(target_os = "windows")]
-    const MODEL_PATH: &'static str = "tests\\add.bin";
+    const MODEL_PATH: &str = "tests\\add.bin";
     #[cfg(not(target_os = "windows"))]
-    const MODEL_PATH: &'static str = "tests/add.bin";
-
-    #[test]
-    fn test_interpreter_with_model_path() {
-        let _ = Interpreter::with_model_path(MODEL_PATH, None);
-    }
+    const MODEL_PATH: &str = "tests/add.bin";
 
     #[test]
     fn test_interpreter_input_output_count() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
+        let bytes = std::fs::read(MODEL_PATH).expect("Cannot read model data!");
+        let model = Model::from_bytes(&bytes).expect("Cannot load model from bytes");
+        let interpreter = Interpreter::new(&model, None).expect("Cannot create interpreter");
         assert_eq!(interpreter.input_tensor_count(), 1);
         assert_eq!(interpreter.output_tensor_count(), 1);
     }
 
     #[test]
     fn test_interpreter_get_input_tensor() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
+        let bytes = std::fs::read(MODEL_PATH).expect("Cannot read model data!");
+        let model = Model::from_bytes(&bytes).expect("Cannot load model from bytes!");
+        let interpreter = Interpreter::new(&model, None).expect("Cannot create interpreter!");
 
         let invalid_tensor = interpreter.input(1);
         assert!(invalid_tensor.is_err());
@@ -451,7 +427,10 @@ mod tests {
 
     #[test]
     fn test_interpreter_allocate_tensors() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
+        let bytes = std::fs::read(MODEL_PATH).expect("Cannot read model data!");
+        let model = Model::from_bytes(&bytes).expect("Cannot load model from bytes!");
+        let interpreter = Interpreter::new(&model, None).expect("Cannot create interpreter!");
+
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
@@ -464,7 +443,10 @@ mod tests {
 
     #[test]
     fn test_interpreter_copy_input() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
+        let bytes = std::fs::read(MODEL_PATH).expect("Cannot read model data!");
+        let model = Model::from_bytes(&bytes).expect("Cannot load model from bytes!");
+        let interpreter = Interpreter::new(&model, None).expect("Cannot create interpreter!");
+
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
@@ -479,7 +461,9 @@ mod tests {
 
     #[test]
     fn test_interpreter_invoke() {
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, None).unwrap();
+        let model = Model::new(MODEL_PATH).expect("Cannot load model from file!");
+        let interpreter = Interpreter::new(&model, None).expect("Cannot create interpreter!");
+
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
@@ -505,7 +489,9 @@ mod tests {
             thread_count: 2,
             is_xnnpack_enabled: true,
         });
-        let interpreter = Interpreter::with_model_path(MODEL_PATH, options).unwrap();
+        let model = Model::new(MODEL_PATH).expect("Cannot load model from file!");
+        let interpreter = Interpreter::new(&model, options).expect("Cannot create interpreter!");
+
         interpreter
             .resize_input(0, tensor::Shape::new(vec![10, 8, 8, 3]))
             .expect("Resize failed");
