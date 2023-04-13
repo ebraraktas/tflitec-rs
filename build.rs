@@ -162,8 +162,11 @@ fn prepare_tensorflow_source(tf_src_path: &Path) {
 }
 
 fn check_and_set_envs() {
-    let python_bin_path =
-        get_python_bin_path().expect("Cannot find Python binary having required packages.");
+    let python_bin_path = get_python_bin_path().expect(
+        "Cannot find Python binary having required packages. \
+        Make sure that `which python3` or `which python` points to a Python3 binary having numpy \
+        installed. Or set PYTHON_BIN_PATH to the path of that binary.",
+    );
     let os = env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS");
     let default_envs = [
         ["PYTHON_BIN_PATH", python_bin_path.to_str().unwrap()],
