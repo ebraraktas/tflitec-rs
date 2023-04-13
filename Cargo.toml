@@ -16,7 +16,7 @@ name = "tflitec"
 [dependencies]
 
 [build-dependencies]
-bindgen = "0.64"
+bindgen = "0.65"
 fs_extra = "1.3"
 curl = "0.4"
 
