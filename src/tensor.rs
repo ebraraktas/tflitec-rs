@@ -29,6 +29,8 @@ pub enum DataType {
     Bool,
     /// An 8-bit unsigned integer.
     Uint8,
+    /// An 8-bit signed integer.
+    Int8,
     /// A 16-bit signed integer.
     Int16,
     /// A 32-bit signed integer.
@@ -57,6 +59,7 @@ impl DataType {
         match tflite_type {
             bindings::TfLiteType_kTfLiteBool => Some(DataType::Bool),
             bindings::TfLiteType_kTfLiteUInt8 => Some(DataType::Uint8),
+            bindings::TfLiteType_kTfLiteInt8 => Some(DataType::Int8),
             bindings::TfLiteType_kTfLiteInt16 => Some(DataType::Int16),
             bindings::TfLiteType_kTfLiteInt32 => Some(DataType::Int32),
             bindings::TfLiteType_kTfLiteInt64 => Some(DataType::Int64),
@@ -185,14 +188,15 @@ impl<'a> Tensor<'a> {
             };
             let quantization_parameters_ptr = TfLiteTensorQuantizationParams(tensor_ptr);
             let scale = quantization_parameters_ptr.scale;
-            let quantization_parameters = if scale == 0.0 || data_type != DataType::Uint8 {
-                None
-            } else {
-                Some(QuantizationParameters {
-                    scale: quantization_parameters_ptr.scale,
-                    zero_point: quantization_parameters_ptr.zero_point,
-                })
-            };
+            let quantization_parameters =
+                if scale == 0.0 || (data_type != DataType::Uint8 && data_type != DataType::Int8) {
+                    None
+                } else {
+                    Some(QuantizationParameters {
+                        scale: quantization_parameters_ptr.scale,
+                        zero_point: quantization_parameters_ptr.zero_point,
+                    })
+                };
             Ok(Tensor {
                 name,
                 data_type,
