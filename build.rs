@@ -6,11 +6,13 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-const TAG: &str = "v2.9.1";
+
 const TF_GIT_URL: &str = "https://github.com/tensorflow/tensorflow.git";
 const BAZEL_COPTS_ENV_VAR: &str = "TFLITEC_BAZEL_COPTS";
 const PREBUILT_PATH_ENV_VAR: &str = "TFLITEC_PREBUILT_PATH";
 const HEADER_DIR_ENV_VAR: &str = "TFLITEC_HEADER_DIR";
+const TENSORFLOW_VERSION_ENV_VAR: &str = "TFLITEC_TENSORFLOW_VERSION";
+const TENSORFLOW_DEFAULT_VERSION: &str = "v2.9.1";
 
 fn target_os() -> String {
     env::var("CARGO_CFG_TARGET_OS").expect("Unable to get TARGET_OS")
@@ -29,6 +31,9 @@ fn dll_prefix() -> &'static str {
         "windows" => "",
         _ => "lib",
     }
+}
+fn tensorflow_version() -> String {
+    env::var(TENSORFLOW_VERSION_ENV_VAR).unwrap_or(TENSORFLOW_DEFAULT_VERSION.to_owned())
 }
 
 fn copy_or_overwrite<P: AsRef<Path> + Debug, Q: AsRef<Path> + Debug>(src: P, dest: Q) {
@@ -138,7 +143,7 @@ fn prepare_tensorflow_source(tf_src_path: &Path) {
         git.arg("clone")
             .args(["--depth", "1"])
             .arg("--shallow-submodules")
-            .args(["--branch", TAG])
+            .args(["--branch", tensorflow_version().as_str()])
             .arg("--single-branch")
             .arg(TF_GIT_URL)
             .arg(tf_src_path.to_str().unwrap());
@@ -264,7 +269,8 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
     let mut bazel = std::process::Command::new("bazel");
     {
         // Set bazel outputBase under OUT_DIR
-        let bazel_output_base_path = out_dir().join(format!("tensorflow_{}_output_base", TAG));
+        let bazel_output_base_path =
+            out_dir().join(format!("tensorflow_{}_output_base", tensorflow_version()));
         bazel.arg(format!(
             "--output_base={}",
             bazel_output_base_path.to_str().unwrap()
@@ -378,7 +384,7 @@ fn generate_bindings(tf_src_path: PathBuf) {
         .clang_arg(format!("-I{}", tf_src_path.to_str().unwrap()))
         // Tell cargo to invalidate the built crate whenever any of the
         // included header files changed.
-        .parse_callbacks(Box::new(bindgen::CargoCallbacks))
+        .parse_callbacks(Box::new(bindgen::CargoCallbacks::new()))
         // Finish the builder and generate the bindings.
         .generate()
         // Unwrap the Result and panic on failure.
@@ -462,7 +468,8 @@ fn download_headers(tf_src_path: &Path, file_paths: &[&str]) {
         }
         let url = format!(
             "https://raw.githubusercontent.com/tensorflow/tensorflow/{}/{}",
-            TAG, file_path
+            tensorflow_version(),
+            file_path
         );
         download_file(&url, download_path.as_path());
     }
@@ -521,7 +528,7 @@ fn main() {
         // docs.rs cannot access to network, use resource files
         prepare_for_docsrs();
     } else {
-        let tf_src_path = out_path.join(format!("tensorflow_{}", TAG));
+        let tf_src_path = out_path.join(format!("tensorflow_{}", tensorflow_version()));
         let lib_output_path = lib_output_path();
 
         if let Some(prebuilt_tflitec_path) = get_target_dependent_env_var(PREBUILT_PATH_ENV_VAR) {

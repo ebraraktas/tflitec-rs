@@ -43,6 +43,8 @@ pub enum DataType {
     Float32,
     /// A 64-bit double precision floating point.
     Float64,
+    /// A string.
+    String,
 }
 
 impl DataType {
@@ -66,6 +68,7 @@ impl DataType {
             bindings::TfLiteType_kTfLiteFloat16 => Some(DataType::Float16),
             bindings::TfLiteType_kTfLiteFloat32 => Some(DataType::Float32),
             bindings::TfLiteType_kTfLiteFloat64 => Some(DataType::Float64),
+            bindings::TfLiteType_kTfLiteString => Some(DataType::String),
             _ => None,
         }
     }
@@ -167,16 +170,17 @@ impl<'a> Tensor<'a> {
             if name_ptr.is_null() {
                 return Err(Error::new(ErrorKind::ReadTensorError));
             }
-            let data_ptr = TfLiteTensorData(tensor_ptr) as *mut u8;
-            if data_ptr.is_null() {
-                return Err(Error::new(ErrorKind::ReadTensorError));
-            }
             let name = CStr::from_ptr(name_ptr).to_str().unwrap().to_owned();
 
             let data_length = TfLiteTensorByteSize(tensor_ptr);
             let data_type = DataType::new(TfLiteTensorType(tensor_ptr))
                 .ok_or_else(|| Error::new(ErrorKind::InvalidTensorDataType))?;
 
+            let data_ptr = TfLiteTensorData(tensor_ptr) as *mut u8;
+            // in the case of string tensor, data can be null
+            if data_ptr.is_null() && data_type != DataType::String {
+                return Err(Error::new(ErrorKind::ReadTensorError));
+            }
             let rank = TfLiteTensorNumDims(tensor_ptr);
             let dimensions = (0..rank)
                 .map(|i| TfLiteTensorDim(tensor_ptr, i) as usize)
