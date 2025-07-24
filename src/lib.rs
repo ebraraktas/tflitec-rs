@@ -19,3 +19,18 @@ pub(crate) mod bindings {
 }
 
 pub use self::error::{Error, ErrorKind, Result};
+
+/// Returns TensorFlow Lite version.
+pub fn tf_lite_version() -> &'static str {
+    use std::ffi::CStr;
+    unsafe { CStr::from_ptr(bindings::TfLiteVersion()).to_str().unwrap() }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_version() {
+        let version = super::tf_lite_version();
+        assert_eq!(version, "2.19.0")
+    }
+}

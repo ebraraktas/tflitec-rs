@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-const TAG: &str = "v2.9.1";
+const TAG: &str = "v2.19.0";
 const TF_GIT_URL: &str = "https://github.com/tensorflow/tensorflow.git";
 const BAZEL_COPTS_ENV_VAR: &str = "TFLITEC_BAZEL_COPTS";
 const PREBUILT_PATH_ENV_VAR: &str = "TFLITEC_PREBUILT_PATH";
@@ -414,7 +414,12 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
         tf_src_path,
         &[
             "tensorflow/lite/c/c_api.h",
-            "tensorflow/lite/c/c_api_types.h",
+            "tensorflow/lite/core/c/c_api.h",
+            "tensorflow/lite/core/c/c_api_types.h",
+            "tensorflow/lite/core/c/operator.h",
+            "tensorflow/lite/core/async/c/types.h",
+            "tensorflow/lite/builtin_ops.h",
+            "tensorflow/compiler/mlir/lite/core/c/tflite_types.h",
         ],
     );
     if cfg!(feature = "xnnpack") {
@@ -422,7 +427,9 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
             tf_src_path,
             &[
                 "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h",
-                "tensorflow/lite/c/common.h",
+                "tensorflow/lite/core/c/common.h",
+                "tensorflow/lite/core/c/c_api_types.h",
+                "tensorflow/compiler/mlir/lite/core/c/tflite_types.h",
             ],
         );
     }
