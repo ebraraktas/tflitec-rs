@@ -28,7 +28,15 @@ pub enum DataType {
     /// A boolean.
     Bool,
     /// An 8-bit unsigned integer.
-    Uint8,
+    UInt8,
+    /// A 16-bit unsigned integer.
+    UInt16,
+    /// A 32-bit unsigned integer.
+    UInt32,
+    /// A 64-bit unsigned integer.
+    UInt64,
+    /// A 4-bit signed integer.
+    Int4,
     /// An 8-bit signed integer.
     Int8,
     /// A 16-bit signed integer.
@@ -37,12 +45,17 @@ pub enum DataType {
     Int32,
     /// A 64-bit signed integer.
     Int64,
+    /// A 16-bit half precision brain floating point.
+    BFloat16,
     /// A 16-bit half precision floating point.
     Float16,
     /// A 32-bit single precision floating point.
     Float32,
     /// A 64-bit double precision floating point.
     Float64,
+    String,
+    Complex64,
+    Complex128,
 }
 
 impl DataType {
@@ -58,14 +71,22 @@ impl DataType {
     pub(crate) fn new(tflite_type: TfLiteType) -> Option<DataType> {
         match tflite_type {
             bindings::TfLiteType_kTfLiteBool => Some(DataType::Bool),
-            bindings::TfLiteType_kTfLiteUInt8 => Some(DataType::Uint8),
+            bindings::TfLiteType_kTfLiteUInt8 => Some(DataType::UInt8),
+            bindings::TfLiteType_kTfLiteUInt16 => Some(DataType::UInt16),
+            bindings::TfLiteType_kTfLiteUInt32 => Some(DataType::UInt32),
+            bindings::TfLiteType_kTfLiteUInt64 => Some(DataType::UInt64),
+            bindings::TfLiteType_kTfLiteInt4 => Some(DataType::Int4),
             bindings::TfLiteType_kTfLiteInt8 => Some(DataType::Int8),
             bindings::TfLiteType_kTfLiteInt16 => Some(DataType::Int16),
             bindings::TfLiteType_kTfLiteInt32 => Some(DataType::Int32),
             bindings::TfLiteType_kTfLiteInt64 => Some(DataType::Int64),
+            bindings::TfLiteType_kTfLiteBFloat16 => Some(DataType::BFloat16),
             bindings::TfLiteType_kTfLiteFloat16 => Some(DataType::Float16),
             bindings::TfLiteType_kTfLiteFloat32 => Some(DataType::Float32),
             bindings::TfLiteType_kTfLiteFloat64 => Some(DataType::Float64),
+            bindings::TfLiteType_kTfLiteString => Some(DataType::String),
+            bindings::TfLiteType_kTfLiteComplex64 => Some(DataType::Complex64),
+            bindings::TfLiteType_kTfLiteComplex128 => Some(DataType::Complex128),
             _ => None,
         }
     }
@@ -189,7 +210,7 @@ impl<'a> Tensor<'a> {
             let quantization_parameters_ptr = TfLiteTensorQuantizationParams(tensor_ptr);
             let scale = quantization_parameters_ptr.scale;
             let quantization_parameters =
-                if scale == 0.0 || (data_type != DataType::Uint8 && data_type != DataType::Int8) {
+                if scale == 0.0 || (data_type != DataType::UInt8 && data_type != DataType::Int8) {
                     None
                 } else {
                     Some(QuantizationParameters {
