@@ -10,6 +10,7 @@ pub enum ErrorKind {
     InvalidTensorDataCount(/* provided: */ usize, /* required: */ usize),
     /// Indicates failure to resize tensor with index (first value).
     FailedToResizeInputTensor(/* index: */ usize),
+    FailedToResizeNamedInputTensor,
     AllocateTensorsRequired,
     InvalidTensorDataType,
     FailedToAllocateTensors,
@@ -18,24 +19,28 @@ pub enum ErrorKind {
     FailedToCreateInterpreter,
     ReadTensorError,
     InvokeInterpreterRequired,
+    InvalidSignatureRunner,
+    InvalidTensorName,
 }
 
 impl ErrorKind {
     pub(crate) fn as_string(&self) -> String {
         match *self {
             ErrorKind::InvalidTensorIndex(index, max_index) => {
-                format!("invalid tensor index {}, max index is {}", index, max_index)
+                format!("invalid tensor index {index}, max index is {max_index}")
             }
-            ErrorKind::InvalidTensorDataCount(provided, required) => format!(
-                "provided data count {} must match the required count {}",
-                provided, required
-            ),
+            ErrorKind::InvalidTensorDataCount(provided, required) => {
+                format!("provided data count {provided} must match the required count {required}")
+            }
             ErrorKind::InvalidTensorDataType => {
                 "tensor data type is unsupported or could not be determined due to a model error"
                     .to_string()
             }
             ErrorKind::FailedToResizeInputTensor(index) => {
-                format!("failed to resize input tensor at index {}", index)
+                format!("failed to resize input tensor at index {index}")
+            }
+            ErrorKind::FailedToResizeNamedInputTensor => {
+                "failed to resize tensor for the given name".to_string()
             }
             ErrorKind::AllocateTensorsRequired => "must call allocate_tensors()".to_string(),
             ErrorKind::FailedToAllocateTensors => {
@@ -48,6 +53,10 @@ impl ErrorKind {
             ErrorKind::FailedToCreateInterpreter => "failed to create the interpreter".to_string(),
             ErrorKind::ReadTensorError => "failed to read tensor".to_string(),
             ErrorKind::InvokeInterpreterRequired => "must call invoke()".to_string(),
+            ErrorKind::InvalidSignatureRunner => {
+                "failed to get signature runner for the given key".to_string()
+            }
+            ErrorKind::InvalidTensorName => "failed to get tensor for the given name".to_string(),
         }
     }
 }

@@ -1,9 +1,11 @@
 //! API of TensorFlow Lite [`Interpreter`] that performs inference.
 use std::ffi::c_void;
+use std::ffi::CString;
 use std::os::raw::c_int;
 
 use crate::bindings::*;
 use crate::model::Model;
+use crate::signature_runner;
 use crate::tensor;
 use crate::tensor::Tensor;
 use crate::{Error, ErrorKind, Result};
@@ -184,7 +186,7 @@ impl<'a> Interpreter<'a> {
         }
         unsafe {
             let tensor_ptr = TfLiteInterpreterGetInputTensor(self.interpreter_ptr, index as i32);
-            Tensor::from_raw(tensor_ptr as *mut TfLiteTensor).map_err(|error| {
+            Tensor::from_raw(tensor_ptr).map_err(|error| {
                 if error.kind() == ErrorKind::ReadTensorError {
                     Error::new(ErrorKind::AllocateTensorsRequired)
                 } else {
@@ -227,8 +229,8 @@ impl<'a> Interpreter<'a> {
     /// specified [`Shape`][tensor::Shape].
     ///
     /// - Note: After resizing an input tensor, the client **must** explicitly call
-    /// [`Interpreter::allocate_tensors()`] before attempting to access the resized tensor data
-    /// or invoking the interpreter to perform inference.
+    ///   [`Interpreter::allocate_tensors()`] before attempting to access the resized tensor data
+    ///   or invoking the interpreter to perform inference.
     ///
     /// # Arguments
     ///
@@ -270,7 +272,7 @@ impl<'a> Interpreter<'a> {
     /// their [`Shape`][tensor::Shape]s.
     ///
     /// - Note: This is a relatively expensive operation and should only be called
-    /// after creating the interpreter and resizing any input tensors.
+    ///   after creating the interpreter and resizing any input tensors.
     ///
     /// # Error
     ///
@@ -335,9 +337,8 @@ impl<'a> Interpreter<'a> {
     /// input tensor or the given index is not a valid input tensor index in
     /// [0, [`Interpreter::input_tensor_count()`]) or TensorFlow Lite C fails internally.
     pub fn copy<T>(&self, data: &[T], index: usize) -> Result<()> {
-        let element_size = std::mem::size_of::<T>();
         let d = unsafe {
-            std::slice::from_raw_parts(data.as_ptr() as *const u8, data.len() * element_size)
+            std::slice::from_raw_parts(data.as_ptr() as *const u8, std::mem::size_of_val(data))
         };
         self.copy_bytes(d, index)
     }
@@ -345,6 +346,34 @@ impl<'a> Interpreter<'a> {
     /// Returns optional reference of [`Options`].
     pub fn options(&self) -> Option<&Options> {
         self.options.as_ref()
+    }
+
+    pub fn signature_count(&self) -> usize {
+        unsafe { TfLiteInterpreterGetSignatureCount(self.interpreter_ptr) as usize }
+    }
+
+    pub fn get_signature_key(&self, index: usize) -> Result<&str> {
+        unsafe {
+            let key = TfLiteInterpreterGetSignatureKey(self.interpreter_ptr, index as i32);
+            Ok(std::ffi::CStr::from_ptr(key).to_str().unwrap())
+        }
+    }
+
+    pub fn get_signature_runner(
+        &self,
+        signature_key: &str,
+    ) -> Result<signature_runner::SignatureRunner> {
+        unsafe {
+            let runner = TfLiteInterpreterGetSignatureRunner(
+                self.interpreter_ptr,
+                CString::new(signature_key).unwrap().as_ptr(),
+            );
+            if runner.is_null() {
+                Err(Error::new(ErrorKind::InvalidSignatureRunner))
+            } else {
+                Ok(signature_runner::SignatureRunner::new(runner, self))
+            }
+        }
     }
 
     #[cfg(feature = "xnnpack")]

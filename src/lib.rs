@@ -6,6 +6,7 @@
 mod error;
 pub mod interpreter;
 pub mod model;
+pub mod signature_runner;
 pub mod tensor;
 
 pub(crate) mod bindings {

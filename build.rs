@@ -82,14 +82,14 @@ fn get_target_dependent_env_var(var: &str) -> Option<String> {
 }
 
 fn test_python_bin(python_bin_path: &str) -> bool {
-    println!("Testing Python at {}", python_bin_path);
+    println!("Testing Python at {python_bin_path}");
     let success = std::process::Command::new(python_bin_path)
         .args(["-c", "import numpy, importlib.util"])
         .status()
         .map(|s| s.success())
         .unwrap_or_default();
     if success {
-        println!("Using Python at {}", python_bin_path);
+        println!("Using Python at {python_bin_path}");
     }
     success
 }
@@ -111,7 +111,7 @@ fn get_python_bin_path() -> Option<PathBuf> {
                 if test_python_bin(path) {
                     return Some(PathBuf::from(path));
                 }
-                println!("cargo:warning={:?} failed import test", path)
+                println!("cargo:warning={path:?} failed import test")
             }
         }
         if let Ok(x) = std::process::Command::new(bin).arg("python").output() {
@@ -119,7 +119,7 @@ fn get_python_bin_path() -> Option<PathBuf> {
                 if test_python_bin(path) {
                     return Some(PathBuf::from(path));
                 }
-                println!("cargo:warning={:?} failed import test", path)
+                println!("cargo:warning={path:?} failed import test")
             }
             None
         } else {
@@ -213,7 +213,7 @@ fn lib_output_path() -> PathBuf {
     if target_os() != "ios" {
         let ext = dll_extension();
         let lib_prefix = dll_prefix();
-        out_dir().join(format!("{}tensorflowlite_c.{}", lib_prefix, ext))
+        out_dir().join(format!("{lib_prefix}tensorflowlite_c.{ext}"))
     } else {
         out_dir().join("TensorFlowLiteC.framework")
     }
@@ -239,8 +239,8 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
             lib_out_dir = lib_out_dir.join(&sub_directory[1..]);
         }
         let lib_prefix = dll_prefix();
-        bazel_output_path_buf = lib_out_dir.join(format!("{}tensorflowlite_c.{}", lib_prefix, ext));
-        bazel_target = format!("//tensorflow/lite/c{}:tensorflowlite_c", sub_directory);
+        bazel_output_path_buf = lib_out_dir.join(format!("{lib_prefix}tensorflowlite_c.{ext}"));
+        bazel_target = format!("//tensorflow/lite/c{sub_directory}:tensorflowlite_c");
     } else {
         bazel_output_path_buf = PathBuf::from(tf_src_path)
             .join("bazel-bin")
@@ -264,7 +264,7 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
     let mut bazel = std::process::Command::new("bazel");
     {
         // Set bazel outputBase under OUT_DIR
-        let bazel_output_base_path = out_dir().join(format!("tensorflow_{}_output_base", TAG));
+        let bazel_output_base_path = out_dir().join(format!("tensorflow_{TAG}_output_base"));
         bazel.arg(format!(
             "--output_base={}",
             bazel_output_base_path.to_str().unwrap()
@@ -285,21 +285,21 @@ fn build_tensorflow_with_bazel(tf_src_path: &str, config: &str, lib_output_path:
     bazel.arg("--define").arg("xnn_enable_qu8=true");
 
     bazel
-        .arg(format!("--config={}", config))
+        .arg(format!("--config={config}"))
         .arg(bazel_target)
         .current_dir(tf_src_path);
 
     if let Some(copts) = get_target_dependent_env_var(BAZEL_COPTS_ENV_VAR) {
         let copts = copts.split_ascii_whitespace();
         for opt in copts {
-            bazel.arg(format!("--copt={}", opt));
+            bazel.arg(format!("--copt={opt}"));
         }
     }
 
     if target_os == "ios" {
         bazel.args(["--apple_bitcode=embedded", "--copt=-fembed-bitcode"]);
     }
-    println!("Bazel Build Command: {:?}", bazel);
+    println!("Bazel Build Command: {bazel:?}");
     if !bazel.status().expect("Cannot execute bazel").success() {
         panic!("Cannot build TensorFlowLiteC");
     }
@@ -428,8 +428,6 @@ fn install_prebuilt(prebuilt_tflitec_path: &str, tf_src_path: &Path, lib_output_
             &[
                 "tensorflow/lite/delegates/xnnpack/xnnpack_delegate.h",
                 "tensorflow/lite/core/c/common.h",
-                "tensorflow/lite/core/c/c_api_types.h",
-                "tensorflow/compiler/mlir/lite/core/c/tflite_types.h",
             ],
         );
     }
@@ -467,10 +465,8 @@ fn download_headers(tf_src_path: &Path, file_paths: &[&str]) {
         if let Some(p) = download_path.parent() {
             std::fs::create_dir_all(p).expect("Cannot generate header dir");
         }
-        let url = format!(
-            "https://raw.githubusercontent.com/tensorflow/tensorflow/{}/{}",
-            TAG, file_path
-        );
+        let url =
+            format!("https://raw.githubusercontent.com/tensorflow/tensorflow/{TAG}/{file_path}");
         download_file(&url, download_path.as_path());
     }
 }
@@ -528,7 +524,7 @@ fn main() {
         // docs.rs cannot access to network, use resource files
         prepare_for_docsrs();
     } else {
-        let tf_src_path = out_path.join(format!("tensorflow_{}", TAG));
+        let tf_src_path = out_path.join(format!("tensorflow_{TAG}"));
         let lib_output_path = lib_output_path();
 
         if let Some(prebuilt_tflitec_path) = get_target_dependent_env_var(PREBUILT_PATH_ENV_VAR) {
@@ -538,7 +534,7 @@ fn main() {
             check_and_set_envs();
             prepare_tensorflow_source(tf_src_path.as_path());
             let config = if os == "android" || os == "ios" || (os == "macos" && arch == "arm64") {
-                format!("{}_{}", os, arch)
+                format!("{os}_{arch}")
             } else {
                 os
             };
