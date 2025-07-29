@@ -19,12 +19,12 @@ read [Optimized Build](#optimized_build) section carefully.
 # Features
 
 * `xnnpack` - Compiles XNNPACK and allows you to use XNNPACK delegate. See details of XNNPACK
-on [here][XNNPACK_blog].
+  on [here][XNNPACK_blog].
 * `xnnpack_qs8` - Compiles XNNPACK with additional build flags to accelerate inference of
-operators with symmetric quantization. See details in [this blog post][XNNPACK_quant_blog].
-Implies `xnnpack`.
+  operators with symmetric quantization. See details in [this blog post][XNNPACK_quant_blog].
+  Implies `xnnpack`.
 * `xnnpack_qu8` - Similar to `xnnpack_qs8`, but accelerates few operators with
-asymmetric quantization. Implies `xnnpack`.
+  asymmetric quantization. Implies `xnnpack`.
 
 *Note:* `xnnpack` is already enabled for iOS, but `xnnpack_qs8` and `xnnpack_qu8`
 should be enabled manually.
@@ -96,7 +96,7 @@ as in the cargo configuration environment variables. Below you can find example 
 * `TFLITEC_PREBUILT_PATH_ARMV7_LINUX_ANDROIDEABI=/path/to/libtensorflowlite_c.so`
 * `TFLITEC_PREBUILT_PATH_X86_64_APPLE_DARWIN=/path/to/libtensorflowlite_c.dylib`
 * `TFLITEC_PREBUILT_PATH_X86_64_PC_WINDOWS_MSVC=/path/to/tensorflowlite_c.dll`. **Note that**, the prebuilt `.dll` 
-file must have the corresponding `.lib` file under the same directory.
+  file must have the corresponding `.lib` file under the same directory.
 
 You can find these files under the [`OUT_DIR`][cargo documentation] after you compile the library for the first time, 
 then copy them to a persistent path and set environment variable.
@@ -168,7 +168,7 @@ Some OSs or targets may require additional steps.
 ## Android:
 * [Android NDK]
 * Following environment variables should be set appropriately
-to build [TensorFlow] for android:
+  to build [TensorFlow] for android:
     * `ANDROID_NDK_HOME`
     * `ANDROID_NDK_API_LEVEL`
     * `ANDROID_SDK_HOME`
@@ -186,7 +186,7 @@ BINDGEN_EXTRA_CLANG_ARGS="\
 -I${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/${HOST_TAG}/sysroot/usr/include/${TARGET_TRIPLE}/"
 ```
 * (Recommended) [cargo-ndk] simplifies `cargo build` process. Recent version of the tool has `--bindgen` flag
-which sets `BINDGEN_EXTRA_CLANG_ARGS` variable appropriately. Hence, you can skip the step above.
+  which sets `BINDGEN_EXTRA_CLANG_ARGS` variable appropriately. Hence, you can skip the step above.
 
 ## Windows
 
