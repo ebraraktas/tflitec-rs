@@ -1,6 +1,6 @@
 [package]
 name = "tflitec"
-version = "0.7.0-rc.2"
+version = "0.7.0"
 authors = ["ebraraktas <ebrar@voys.ai>"]
 edition = "2018"
 license = "MIT"
